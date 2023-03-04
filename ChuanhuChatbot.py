@@ -102,9 +102,14 @@ def save_chat_history(filepath, system, context):
     history = {"system": system, "context": context}
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
+    conversations = os.listdir('conversation')
+    conversations = [i[:-5] for i in conversations if i[-4:]=='json']
+    print(len(conversations))
+    return gr.Dropdown.update(choices=conversations)
 
 def load_chat_history(fileobj):
-    with open(fileobj.name, "r") as f:
+
+    with open('conversation/'+fileobj+'.json', "r") as f:
         history = json.load(f)
     context = history["context"]
     chathistory = []
@@ -144,14 +149,16 @@ with gr.Blocks() as demo:
 
     newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的System Prompt...", label="更改 System prompt").style(container=True)
     systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的 System prompt").style(container=True)
-    with gr.Accordion(label="保存/加载对话历史记录(在文本框中输入文件名，点击“保存对话”按钮，历史记录文件会被存储到本地)", open=False):
-        with gr.Column():
-            with gr.Row():
-                with gr.Column(scale=6):
-                    saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存对话", value="对话历史记录").style(container=True)
-                with gr.Column(scale=1):
-                    saveBtn = gr.Button("💾 保存对话")
-                    uploadBtn = gr.UploadButton("📂 读取对话", file_count="single", file_types=["json"])
+    
+    conversations_var = gr.State([])
+    conversations = os.listdir('conversation')
+    conversations = [i[:-5] for i in conversations if i[-4:]=='json']
+
+    with gr.Row():
+        conversationSelect = gr.Dropdown(conversations,label="选择历史对话", info="选择历史对话")
+        readBtn = gr.Button("📁 读取对话")
+        saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value="对话"+str(len(conversations)))
+        saveBtn = gr.Button("💾 保存对话")
 
     txt.submit(predict, [chatbot, txt, systemPrompt, context], [chatbot, context], show_progress=True)
     txt.submit(lambda :"", None, txt)
@@ -164,8 +171,7 @@ with gr.Blocks() as demo:
     retryBtn.click(retry, [chatbot, systemPrompt, context], [chatbot, context], show_progress=True)
     delLastBtn.click(delete_last_conversation, [chatbot, context], [chatbot, context], show_progress=True)
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [chatbot, context], show_progress=True)
-    uploadBtn.upload(load_chat_history, uploadBtn, [chatbot, systemPrompt, context, systemPromptDisplay], show_progress=True)
-    saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], None, show_progress=True)
-
+    saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [conversationSelect],show_progress=True)
+    readBtn.click(load_chat_history, conversationSelect, [chatbot, systemPrompt, context, systemPromptDisplay], show_progress=True)
 
 demo.launch(share=False)
