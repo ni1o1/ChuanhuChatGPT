@@ -49,6 +49,7 @@ def get_response(system, context, raw = False):
         message = response["choices"][0]["message"]["content"]
 
         message_with_stats = f'{message}\n\n================\n\n{statistics}'
+#         message_with_stats = .markdown(message_with_stats)
 
         return message, parse_text(message)
 
@@ -89,7 +90,6 @@ def reduce_token(chatbot, system, context):
     statistics = f'本次对话Tokens用量【{response["usage"]["completion_tokens"]+12+12+8} / 4096】'
     optmz_str = markdown.markdown( f'好的，我们之前聊了:{response["choices"][0]["message"]["content"]}\n\n================\n\n{statistics}' )
     chatbot.append(("请帮我总结一下上述对话的内容，实现减少tokens的同时，保证对话的质量。", optmz_str))
-    
 
     context = []
     context.append({"role": "user", "content": "我们之前聊了什么?"})
@@ -140,6 +140,7 @@ with gr.Blocks() as demo:
         emptyBtn = gr.Button("🧹 新的对话")
         retryBtn = gr.Button("🔄 重新生成")
         delLastBtn = gr.Button("🗑️ 删除上条对话")
+<<<<<<< HEAD
         reduceTokenBtn = gr.Button("♻️ 总结")
 
 =======
