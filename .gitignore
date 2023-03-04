@@ -1,3 +1,4 @@
+*.json
 apikey
 test.ipynb
 # Byte-compiled / optimized / DLL files
