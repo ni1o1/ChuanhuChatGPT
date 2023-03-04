@@ -100,7 +100,7 @@ def save_chat_history(filepath, system, context):
     if filepath == "":
         return
     history = {"system": system, "context": context}
-    with open(f"{filepath}.json", "w") as f:
+    with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
 
 def load_chat_history(fileobj):
