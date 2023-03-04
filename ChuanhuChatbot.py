@@ -140,12 +140,8 @@ with gr.Blocks() as demo:
         emptyBtn = gr.Button("🧹 新的对话")
         retryBtn = gr.Button("🔄 重新生成")
         delLastBtn = gr.Button("🗑️ 删除上条对话")
-<<<<<<< HEAD
         reduceTokenBtn = gr.Button("♻️ 总结")
 
-=======
-        reduceTokenBtn = gr.Button("♻️ 优化Tokens")
->>>>>>> 000fe8cf8844789446671e1de3184ebc628edc76
     newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的System Prompt...", label="更改 System prompt").style(container=True)
     systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的 System prompt").style(container=True)
     with gr.Accordion(label="保存/加载对话历史记录(在文本框中输入文件名，点击“保存对话”按钮，历史记录文件会被存储到本地)", open=False):
