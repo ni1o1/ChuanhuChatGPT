@@ -2,9 +2,13 @@ import gradio as gr
 import openai
 import os
 import sys
-# import markdown
+import markdown
 
-my_api_key = ""    # 在这里输入你的 API 密钥
+f = open('apikey')
+apikey = f.readline()
+f.close()
+
+my_api_key = apikey    # 在这里输入你的 API 密钥
 initial_prompt = "You are a helpful assistant."
 
 if my_api_key == "":
@@ -46,7 +50,7 @@ def get_response(system, context, raw = False):
         message_with_stats = f'{message}\n\n================\n\n{statistics}'
 #         message_with_stats = markdown.markdown(message_with_stats)
 
-        return message, parse_text(message_with_stats)
+        return message, parse_text(message)
 
 def predict(chatbot, input_sentence, system, context):
     if len(input_sentence) == 0:
@@ -113,7 +117,7 @@ with gr.Blocks() as demo:
         emptyBtn = gr.Button("🧹 新的对话")
         retryBtn = gr.Button("🔄 重新生成")
         delLastBtn = gr.Button("🗑️ 删除上条对话")
-        reduceTokenBtn = gr.Button("♻️ 优化Tokens")
+        reduceTokenBtn = gr.Button("♻️ 总结")
 
     newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的System Prompt...", label="更改 System prompt").style(container=True)
     systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的 System prompt").style(container=True)
@@ -131,4 +135,4 @@ with gr.Blocks() as demo:
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [chatbot, context], show_progress=True)
 
 
-demo.launch()
+demo.launch(share=False)
