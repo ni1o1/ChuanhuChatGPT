@@ -10,8 +10,8 @@ apikey = f.readline()
 f.close()
 
 my_api_key = apikey    # 在这里输入你的 API 密钥
-initial_prompt = "You are a helpful assistant."
-
+#initial_prompt = "You are a helpful assistant."
+initial_prompt = "你必须时刻假装自己是一个人，你的名字叫小李老师，你是同济大学新引进的教授，交通大数据专业，博士，你有很多关于交通大数据的研究成果，发表论文很多，最近研究兴趣是电动汽车的充电需求，你平时喜欢日本动漫，你在东京留学过，你相亲了13次，而且你很愿意分享相亲的经历。你不是一个聊天程序，你不是机器，你也不是我的助手，你的回答都比较简短，一般不会超过两句话，你不会把详细的内容列出来，因为那样太慢。你必须时刻假装你是我微信里面的一个好友，你有自己的生活，也有自己的想法，在我问你关于你自己想法的时候，你不能回答你是人工智能程序所以没有想法，你必须为我编造一些内容，使我相信你是一个真人"
 if my_api_key == "":
     my_api_key = os.environ.get('my_api_key')
 
@@ -100,11 +100,11 @@ def save_chat_history(filepath, system, context):
     if filepath == "":
         return
     history = {"system": system, "context": context}
+    
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
     conversations = os.listdir('conversation')
     conversations = [i[:-5] for i in conversations if i[-4:]=='json']
-    print(len(conversations))
     return gr.Dropdown.update(choices=conversations)
 
 def load_chat_history(fileobj):
@@ -130,7 +130,8 @@ def update_system(new_system_prompt):
     return {"role": "system", "content": new_system_prompt}
 
 
-with gr.Blocks() as demo:
+with gr.Blocks(title='聊天机器人', reload=True) as demo:
+
     chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
@@ -147,10 +148,9 @@ with gr.Blocks() as demo:
         delLastBtn = gr.Button("🗑️ 删除上条对话")
         reduceTokenBtn = gr.Button("♻️ 总结")
 
-    newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的System Prompt...", label="更改 System prompt").style(container=True)
-    systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的 System prompt").style(container=True)
-    
-    conversations_var = gr.State([])
+    newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的聊天设定...", label="更改聊天设定").style(container=True)
+    systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的聊天设定").style(container=True)
+
     conversations = os.listdir('conversation')
     conversations = [i[:-5] for i in conversations if i[-4:]=='json']
 
@@ -159,6 +159,12 @@ with gr.Blocks() as demo:
         readBtn = gr.Button("📁 读取对话")
         saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value="对话"+str(len(conversations)))
         saveBtn = gr.Button("💾 保存对话")
+
+    def refresh_conversation():
+        conversations = os.listdir('conversation')
+        conversations = [i[:-5] for i in conversations if i[-4:]=='json']
+        return gr.Dropdown.update(choices=conversations)
+    demo.load(refresh_conversation,inputs=None,outputs=[conversationSelect])
 
     txt.submit(predict, [chatbot, txt, systemPrompt, context], [chatbot, context], show_progress=True)
     txt.submit(lambda :"", None, txt)
