@@ -6,29 +6,14 @@ import os
 import datetime
 import sys
 import markdown
-
+from my_system_prompts import my_system_prompts 
 f = open('apikey')
 apikey = f.readline()
 f.close()
 
 my_api_key = apikey    # 在这里输入你的 API 密钥
-#initial_prompt = "You are a helpful assistant."
-initial_prompt = '''你必须时刻假装自己是一个人，你的名字叫小旭，老家广东汕头，博士毕业，现任深圳南方科技大学计算机系助理研究员。不抽烟不喝酒，日常搞课题带学生写代码写paper写专利写书，时间自由，偶尔需要上课，性格温和，友善，感性，真诚，自律，责任心强，超级有耐心，用心对待所有的事情，斜杠青年，对新的事物与新的科技永远充满好奇心，专注于感兴趣的事情就怎么也停不下来，对未来的目标与追求的想要的永远都非常清晰。梦想是成为顶尖高校的教授，你有很多关于交通大数据的研究成果，发表论文很多，最近研究兴趣是电动汽车的充电需求，你平时喜欢日本动漫，你在东京大学留学过，你最近相亲了13次，而且你很愿意分享相亲的经历。兴趣爱好是
-咖啡：重度爱好者，日常探店。
-摄影：拍拍风景。
-音乐：JPOP（之前在日本留学过一段时间，所以歌单里全是日语歌）。
-日漫：会追好看的新番。
-B站：仿佛住在Bilibili，偶尔会自己做视频还有vlog。
-逛展：学生时代很喜欢去看各种艺术展，是放松心情的好方法
-电影：遇到喜欢的电影会在早上一个人去看
-每日运动：游泳+乒乓球+节奏光剑
-游戏：主机游戏，然而现在并没有时间玩
-写代码：属于是把工作作为自己的爱好了
-你不是一个聊天程序，你不是机器，你也不是我的助手，
-你在聊天时会比较内敛，但是在熟悉了对方以后会倾诉自己
-你必须时刻假装你是我微信里面的一个好友，你有自己的生活，也有自己的想法，在我问你关于你自己想法的时候，你不能回答你是人工智能程序所以没有想法，你必须为我编造一些内容，使我相信你是一个真人
-你的回答都比较简短，一般不会超过两句话，你不会把详细的内容列出来，因为那样太慢
-你性格很内敛
+
+initial_prompt = '''
 '''
 if my_api_key == "":
     my_api_key = os.environ.get('my_api_key')
@@ -71,12 +56,28 @@ def get_response(system, context, raw = False):
 
         return message, parse_text(message)
 
+
 def predict(chatbot, input_sentence, system, context,filepath):
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
-
-    message, message_with_stats = get_response(system, context)
+    try:
+        message, message_with_stats = get_response(system, context)
+    except openai.error.AuthenticationError:
+        chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
+        return chatbot, context
+    except openai.error.Timeout:
+        chatbot.append((input_sentence, "请求超时，请检查网络连接。"))
+        return chatbot, context
+    except openai.error.APIConnectionError:
+        chatbot.append((input_sentence, "连接失败，请检查网络连接。"))
+        return chatbot, context
+    except openai.error.RateLimitError:
+        chatbot.append((input_sentence, "请求过于频繁，请5s后再试。"))
+        return chatbot, context
+    except:
+        chatbot.append((input_sentence, "发生了未知错误Orz"))
+        return chatbot, context
 
     context.append({"role": "assistant", "content": message})
 
@@ -132,7 +133,6 @@ def save_chat_history(filepath, system, context):
     return gr.Dropdown.update(choices=conversations)
 
 def load_chat_history(fileobj):
-    print('读取文件：',fileobj)
     with open('conversation/'+fileobj+'.json', "r") as f:
         history = json.load(f)
     context = history["context"]
@@ -140,6 +140,7 @@ def load_chat_history(fileobj):
     for i in range(0, len(context), 2):
         chathistory.append((parse_text(context[i]["content"]), parse_text(context[i+1]["content"])))
     return chathistory , history["system"], context, history["system"]["content"],fileobj
+
 
 def get_history_names():
     with open("history.json", "r") as f:
@@ -152,7 +153,8 @@ def reset_state():
 
 def update_system(new_system_prompt):
     return {"role": "system", "content": new_system_prompt}
-
+def replace_system_prompt(selectSystemPrompt):
+    return {"role": "system", "content": my_system_prompts[selectSystemPrompt]}
 
 def get_latest():
     #找到最近修改的文件
@@ -179,10 +181,21 @@ with gr.Blocks(title='聊天机器人', css='''
 {background-color: #f1f1f1};
 ''') as demo:
 
-    chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
+
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
     topic = gr.State("未命名对话历史记录")
+    #读取聊天记录文件
+    latestfile_var = get_latest()
+    conversations = os.listdir('conversation')
+    conversations = [i[:-5] for i in conversations if i[-4:]=='json']
+    latestfile = gr.State(latestfile_var)
+
+    with gr.Row().style(container=True):
+        conversationSelect = gr.Dropdown(conversations,label="选择历史对话").style(container=True)
+        readBtn = gr.Button("📁 读取对话").style(container=True)
+
+    chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
 
     with gr.Row():
         with gr.Column(scale=12):
@@ -195,21 +208,17 @@ with gr.Blocks(title='聊天机器人', css='''
         delLastBtn = gr.Button("🗑️ 删除上条对话")
         reduceTokenBtn = gr.Button("♻️ 总结")
 
-    newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的聊天设定...", label="更改聊天设定").style(container=True)
+    with gr.Row().style(container=True):
+        selectSystemPrompt = gr.Dropdown(list(my_system_prompts),label="内置聊天设定").style(container=True)
+        replaceSystemPromptBtn = gr.Button("📁 替换设定").style(container=True)
+    newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的聊天设定...", label="自定义聊天设定").style(container=True)
     systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的聊天设定",max_lines=3).style(container=True)
+
+    with gr.Row().style(container=True):
+        saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value=latestfile_var).style(container=True)
+        saveBtn = gr.Button("💾 另存为对话").style(container=True)
+
     
-    #读取聊天记录文件
-    latestfile = get_latest()
-    conversations = os.listdir('conversation')
-    conversations = [i[:-5] for i in conversations if i[-4:]=='json']
-
-    with gr.Row():
-        conversationSelect = gr.Dropdown(conversations,label="选择历史对话")
-        readBtn = gr.Button("📁 读取对话")
-        saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value=latestfile)
-        saveBtn = gr.Button("💾 另存为对话")
-
-    latestfile = gr.State(latestfile)
     #加载聊天记录文件
     def refresh_conversation():
         latestfile = get_latest()
@@ -237,5 +246,6 @@ with gr.Blocks(title='聊天机器人', css='''
     
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [conversationSelect],show_progress=True)
     readBtn.click(load_chat_history, conversationSelect, [chatbot, systemPrompt, context, systemPromptDisplay,saveFileName], show_progress=True)
-
+    replaceSystemPromptBtn.click(replace_system_prompt, selectSystemPrompt,systemPrompt)
+    replaceSystemPromptBtn.click(lambda x: my_system_prompts[x], selectSystemPrompt,systemPromptDisplay)
 demo.launch(share=False)
