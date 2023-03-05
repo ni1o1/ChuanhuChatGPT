@@ -60,7 +60,6 @@ def get_response(system, context, raw = False):
 def predict(chatbot, input_sentence, system, context,filepath):
     if len(input_sentence) == 0:
         return []
-    context.append({"role": "user", "content": f"{input_sentence}"})
     try:
         message, message_with_stats = get_response(system, context)
     except openai.error.AuthenticationError:
@@ -79,6 +78,7 @@ def predict(chatbot, input_sentence, system, context,filepath):
         chatbot.append((input_sentence, "发生了未知错误Orz"))
         return chatbot, context
 
+    context.append({"role": "user", "content": f"{input_sentence}"})
     context.append({"role": "assistant", "content": message})
 
     chatbot.append((input_sentence, message_with_stats))
