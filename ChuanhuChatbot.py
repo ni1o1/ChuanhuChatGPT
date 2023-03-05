@@ -207,14 +207,17 @@ with gr.Blocks(title='聊天机器人', reload=True,css='''
         saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value=latestfile)
         saveBtn = gr.Button("💾 另存为对话")
 
+    latestfile = gr.State(latestfile)
     #加载聊天记录文件
     def refresh_conversation():
+        latestfile = get_latest()
         conversations = os.listdir('conversation')
         conversations = [i[:-5] for i in conversations if i[-4:]=='json']
-        return gr.Dropdown.update(choices=conversations)
-    demo.load(refresh_conversation,inputs=None,outputs=[conversationSelect])
+        chatbot, systemPrompt, context, systemPromptDisplay,latestfile = load_chat_history(latestfile)
+        return gr.Dropdown.update(choices=conversations),chatbot, systemPrompt, context, systemPromptDisplay,latestfile
+    
+    demo.load(refresh_conversation,inputs=None,outputs=[conversationSelect,chatbot, systemPrompt, context, systemPromptDisplay,latestfile])
 
-    latestfile = gr.State(latestfile)
     demo.load(load_chat_history, latestfile, [chatbot, systemPrompt, context, systemPromptDisplay,latestfile], show_progress=True)
 
     txt.submit(predict, [chatbot, txt, systemPrompt, context,saveFileName], [chatbot, context], show_progress=True)
