@@ -148,7 +148,7 @@ def get_history_names():
 
 
 def reset_state():
-    return [], []
+    return [], [],'新对话'
 
 def update_system(new_system_prompt):
     return {"role": "system", "content": new_system_prompt}
@@ -227,7 +227,7 @@ with gr.Blocks(title='聊天机器人', css='''
     txt.submit(lambda :"", None, txt)
     submitBtn.click(predict, [chatbot, txt, systemPrompt, context,saveFileName], [chatbot, context], show_progress=True)
     submitBtn.click(lambda :"", None, txt)
-    emptyBtn.click(reset_state, outputs=[chatbot, context])
+    emptyBtn.click(reset_state, outputs=[chatbot, context,saveFileName])
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda :"", None, newSystemPrompt)
