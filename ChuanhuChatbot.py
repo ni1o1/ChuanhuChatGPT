@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import json
 import gradio as gr
 import openai
@@ -131,6 +132,7 @@ def save_chat_history(filepath, system, context):
     return gr.Dropdown.update(choices=conversations)
 
 def load_chat_history(fileobj):
+    print('读取文件：',fileobj)
     with open('conversation/'+fileobj+'.json', "r") as f:
         history = json.load(f)
     context = history["context"]
@@ -172,7 +174,7 @@ def get_latest():
     newest_file = file_list[0][0]
     return newest_file.split('.')[0]
 
-with gr.Blocks(title='聊天机器人', reload=True,css='''
+with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
 {background-color: #f1f1f1};
 ''') as demo:
@@ -202,7 +204,7 @@ with gr.Blocks(title='聊天机器人', reload=True,css='''
     conversations = [i[:-5] for i in conversations if i[-4:]=='json']
 
     with gr.Row():
-        conversationSelect = gr.Dropdown(conversations,label="选择历史对话", info="选择历史对话")
+        conversationSelect = gr.Dropdown(conversations,label="选择历史对话")
         readBtn = gr.Button("📁 读取对话")
         saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value=latestfile)
         saveBtn = gr.Button("💾 另存为对话")
@@ -211,6 +213,7 @@ with gr.Blocks(title='聊天机器人', reload=True,css='''
     #加载聊天记录文件
     def refresh_conversation():
         latestfile = get_latest()
+        print('识别到最新文件：',latestfile)
         conversations = os.listdir('conversation')
         conversations = [i[:-5] for i in conversations if i[-4:]=='json']
         chatbot, systemPrompt, context, systemPromptDisplay,latestfile = load_chat_history(latestfile)
@@ -233,7 +236,6 @@ with gr.Blocks(title='聊天机器人', reload=True,css='''
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [chatbot, context], show_progress=True)
     
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [conversationSelect],show_progress=True)
-
     readBtn.click(load_chat_history, conversationSelect, [chatbot, systemPrompt, context, systemPromptDisplay,saveFileName], show_progress=True)
 
 demo.launch(share=False)
