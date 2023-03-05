@@ -60,25 +60,32 @@ def get_response(system, context, raw = False):
 def predict(chatbot, input_sentence, system, context,filepath):
     if len(input_sentence) == 0:
         return []
+    context.append({"role": "user", "content": f"{input_sentence}"})
+
     try:
         message, message_with_stats = get_response(system, context)
     except openai.error.AuthenticationError:
         chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
+        context = context[:-1]
         return chatbot, context
     except openai.error.Timeout:
         chatbot.append((input_sentence, "请求超时，请检查网络连接。"))
+        context = context[:-1]
         return chatbot, context
     except openai.error.APIConnectionError:
         chatbot.append((input_sentence, "连接失败，请检查网络连接。"))
+        context = context[:-1]
         return chatbot, context
     except openai.error.RateLimitError:
         chatbot.append((input_sentence, "请求过于频繁，请5s后再试。"))
+        context = context[:-1]
         return chatbot, context
     except:
         chatbot.append((input_sentence, "发生了未知错误Orz"))
+        context = context[:-1]
         return chatbot, context
 
-    context.append({"role": "user", "content": f"{input_sentence}"})
+
     context.append({"role": "assistant", "content": message})
 
     chatbot.append((input_sentence, message_with_stats))
