@@ -251,8 +251,9 @@ with gr.Blocks(title='聊天机器人', css='''
     conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
     print(my_api_key)
-    
-    keyTxt = gr.Textbox(show_label=False,placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt,visible=len(str(my_api_key)) != 51).style(container=False)
+
+    if len(str(my_api_key)) != 51:
+        keyTxt = gr.Textbox(show_label=True,label='OpenAI API-key',placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
     with gr.Accordion(label="选择历史对话",open=True):
         with gr.Row():
@@ -304,6 +305,8 @@ with gr.Blocks(title='聊天机器人', css='''
             with gr.Column(min_width=20,scale=1):
                 saveBtn = gr.Button("💾").style(container=True)
 
+    if len(str(my_api_key)) == 51:
+        keyTxt = gr.Textbox(show_label=True,label='OpenAI API-key',placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
     # 加载聊天记录文件
 
