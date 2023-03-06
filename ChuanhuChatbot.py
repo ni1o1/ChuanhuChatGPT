@@ -20,7 +20,6 @@ try:
     my_api_key = config['my_api_key']['api_key']
 except:
     my_api_key = "" 
-print(my_api_key)
 # 在这里输入你的 API 密钥
 initial_prompt = "You are a helpful assistant."
 
@@ -141,7 +140,6 @@ def retry(chatbot, system, context,myKey):
 
 
 def delete_last_conversation(chatbot, context):
-    print(chatbot,context)
     if len(context) == 0:
         return [], []
     chatbot = chatbot[:-1]
@@ -213,6 +211,8 @@ def get_history_names():
 def reset_state():
     return [], [], '新对话'
 
+def clear_state():
+    return [], []
 
 def update_system(new_system_prompt):
     return {"role": "system", "content": new_system_prompt}
@@ -271,10 +271,11 @@ with gr.Blocks(title='聊天机器人', css='''
             
     with gr.Box():
         with gr.Row():
-            thisconvername = gr.Markdown('<center>'+latestfile_var+'</center>')
+            with gr.Column(scale=15):
+                thisconvername = gr.Markdown('<center>'+latestfile_var+'</center>')
         with gr.Row():
             with gr.Column(scale=1,min_width=20,variant='panel'):
-                emptyBtn = gr.Button("💬")
+                clearBtn = gr.Button("🗑️")
                 retryBtn = gr.Button("🔁")
                 delLastBtn = gr.Button("🔙")
                 reduceTokenBtn = gr.Button("📝")
@@ -282,11 +283,13 @@ with gr.Blocks(title='聊天机器人', css='''
             with gr.Column(scale=15):
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
-                    with gr.Column(scale=15):
+                    with gr.Column(scale=12):
                         txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
                             container=False)
                     with gr.Column(min_width=20, scale=1):
                         submitBtn = gr.Button("🚀", variant="primary")
+                    with gr.Column(scale=1,min_width=20):
+                        emptyBtn = gr.Button("🆕")
 
     with gr.Box():
         gr.Markdown('聊天设定')
@@ -331,6 +334,7 @@ with gr.Blocks(title='聊天机器人', css='''
                     chatbot, context], show_progress=True,scroll_to_output = True)
     submitBtn.click(lambda: "", None, txt)
     emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
+    clearBtn.click(clear_state, outputs=[chatbot, context])
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
