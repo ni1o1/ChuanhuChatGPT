@@ -216,16 +216,18 @@ with gr.Blocks(title='聊天机器人', css='''
     with gr.Box():
         with gr.Row(variant='panel'):
             conversationSelect = gr.Dropdown(
-                conversations, label="选择历史对话").style(container=True)
+                conversations,value=latestfile_var, label="选择历史对话").style(container=True)
             readBtn = gr.Button("📁 读取对话").style(container=True)
             
     with gr.Box():
         with gr.Row():
+            thisconvername = gr.Markdown('<center>'+latestfile_var+'</center>')
+        with gr.Row():
             with gr.Column(scale=1,min_width=20,variant='panel'):
-                emptyBtn = gr.Button("🧹")
-                retryBtn = gr.Button("🔄")
+                emptyBtn = gr.Button("💬")
+                retryBtn = gr.Button("🔁")
                 delLastBtn = gr.Button("🔙")
-                reduceTokenBtn = gr.Button("♻️")
+                reduceTokenBtn = gr.Button("📝")
             with gr.Column(scale=15):
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
@@ -239,7 +241,7 @@ with gr.Blocks(title='聊天机器人', css='''
         gr.Markdown('聊天设定')
         with gr.Row(variant='panel').style(container=True):
             selectSystemPrompt = gr.Dropdown(
-                list(my_system_prompts), label="内置聊天设定").style(container=True)
+                list(my_system_prompts), label="选择内置聊天设定").style(container=True)
             replaceSystemPromptBtn = gr.Button("📁 替换设定").style(container=True)
         newSystemPrompt = gr.Textbox(
             show_label=True, placeholder=f"在这里输入新的聊天设定...", label="自定义聊天设定").style(container=True)
@@ -295,4 +297,5 @@ with gr.Blocks(title='聊天机器人', css='''
     replaceSystemPromptBtn.click(
         lambda x: my_system_prompts[x], selectSystemPrompt, systemPromptDisplay)
     
+    saveFileName.change(lambda x:'<center>'+x+'</center>',saveFileName,thisconvername)
 demo.launch(share=False)
