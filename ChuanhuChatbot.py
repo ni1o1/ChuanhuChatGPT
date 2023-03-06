@@ -213,7 +213,7 @@ with gr.Blocks(title='聊天机器人', css='''
     latestfile = gr.State(latestfile_var)
 
     with gr.Box():
-        with gr.Row():
+        with gr.Row(variant='panel'):
             conversationSelect = gr.Dropdown(
                 conversations, label="选择历史对话").style(container=True)
             readBtn = gr.Button("📁 读取对话").style(container=True)
@@ -223,7 +223,7 @@ with gr.Blocks(title='聊天机器人', css='''
             with gr.Column(scale=1,min_width=20,variant='panel'):
                 emptyBtn = gr.Button("🧹")
                 retryBtn = gr.Button("🔄")
-                delLastBtn = gr.Button("🗑️")
+                delLastBtn = gr.Button("🔙")
                 reduceTokenBtn = gr.Button("♻️")
             with gr.Column(scale=15):
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
@@ -234,8 +234,9 @@ with gr.Blocks(title='聊天机器人', css='''
                     with gr.Column(min_width=20, scale=1):
                         submitBtn = gr.Button("🚀", variant="primary")
 
-    with gr.Accordion(label='聊天设定'):
-        with gr.Row().style(container=True):
+    with gr.Box():
+        gr.Markdown('聊天设定')
+        with gr.Row(variant='panel').style(container=True):
             selectSystemPrompt = gr.Dropdown(
                 list(my_system_prompts), label="内置聊天设定").style(container=True)
             replaceSystemPromptBtn = gr.Button("📁 替换设定").style(container=True)
@@ -244,11 +245,14 @@ with gr.Blocks(title='聊天机器人', css='''
         systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt,
                                          interactive=False, label="目前的聊天设定", max_lines=3).style(container=True)
 
-    with gr.Accordion(label='对话另存为', open=False):
+    with gr.Box():
+        gr.Markdown('对话另存为')
         with gr.Row().style(container=True):
-            saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...",
-                                      label="保存文件名", value=latestfile_var).style(container=True)
-            saveBtn = gr.Button("💾 另存为对话").style(container=True)
+            with gr.Column(scale=15):
+                saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...",
+                                        label="保存文件名", value=latestfile_var).style(container=True)
+            with gr.Column(min_width=20,scale=1):
+                saveBtn = gr.Button("💾").style(container=True)
 
     # 加载聊天记录文件
 
