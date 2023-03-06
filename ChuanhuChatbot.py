@@ -6,7 +6,7 @@ import os
 import datetime
 import sys
 import markdown
-from my_system_prompts import my_system_prompts 
+from my_system_prompts import my_system_prompts
 f = open('apikey')
 apikey = f.readline()
 f.close()
@@ -24,9 +24,10 @@ if my_api_key == "empty":
 
 openai.api_key = my_api_key
 
+
 def parse_text(text):
     lines = text.split("\n")
-    for i,line in enumerate(lines):
+    for i, line in enumerate(lines):
         if "```" in line:
             items = line.split('`')
             if items[-1]:
@@ -34,13 +35,14 @@ def parse_text(text):
             else:
                 lines[i] = f'</code></pre>'
         else:
-            if i>0:
+            if i > 0:
                 line = line.replace("<", "&lt;")
                 line = line.replace(">", "&gt;")
                 lines[i] = '<br/>'+line.replace(" ", "&nbsp;")
     return "".join(lines)
 
-def get_response(system, context, raw = False):
+
+def get_response(system, context, raw=False):
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[system, *context],
@@ -57,7 +59,7 @@ def get_response(system, context, raw = False):
         return message, parse_text(message)
 
 
-def predict(chatbot, input_sentence, system, context,filepath):
+def predict(chatbot, input_sentence, system, context, filepath):
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
@@ -85,18 +87,18 @@ def predict(chatbot, input_sentence, system, context,filepath):
         context = context[:-1]
         return chatbot, context
 
-
     context.append({"role": "assistant", "content": message})
 
     chatbot.append((input_sentence, message_with_stats))
-    #保存
+    # 保存
     if filepath == "":
         return
     history = {"system": system, "context": context}
-    
+
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
     return chatbot, context
+
 
 def retry(chatbot, system, context):
     if len(context) == 0:
@@ -107,6 +109,7 @@ def retry(chatbot, system, context):
     chatbot[-1] = (context[-2]["content"], message_with_stats)
     return chatbot, context
 
+
 def delete_last_conversation(chatbot, context):
     if len(context) == 0:
         return [], []
@@ -114,30 +117,36 @@ def delete_last_conversation(chatbot, context):
     context = context[:-2]
     return chatbot, context
 
+
 def reduce_token(chatbot, system, context):
-    context.append({"role": "user", "content": "请帮我总结一下上述对话的内容，实现减少tokens的同时，保证对话的质量。在总结中不要加入这一句话。"})
+    context.append(
+        {"role": "user", "content": "请帮我总结一下上述对话的内容，实现减少tokens的同时，保证对话的质量。在总结中不要加入这一句话。"})
 
     response = get_response(system, context, raw=True)
 
     statistics = f'本次对话Tokens用量【{response["usage"]["completion_tokens"]+12+12+8} / 4096】'
-    optmz_str = markdown.markdown( f'好的，我们之前聊了:{response["choices"][0]["message"]["content"]}\n\n================\n\n{statistics}' )
+    optmz_str = markdown.markdown(
+        f'好的，我们之前聊了:{response["choices"][0]["message"]["content"]}\n\n================\n\n{statistics}')
     chatbot.append(("请帮我总结一下上述对话的内容，实现减少tokens的同时，保证对话的质量。", optmz_str))
 
     context = []
     context.append({"role": "user", "content": "我们之前聊了什么?"})
-    context.append({"role": "assistant", "content": f'我们之前聊了：{response["choices"][0]["message"]["content"]}'})
+    context.append(
+        {"role": "assistant", "content": f'我们之前聊了：{response["choices"][0]["message"]["content"]}'})
     return chatbot, context
+
 
 def save_chat_history(filepath, system, context):
     if filepath == "":
         return
     history = {"system": system, "context": context}
-    
+
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
     conversations = os.listdir('conversation')
-    conversations = [i[:-5] for i in conversations if i[-4:]=='json']
+    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     return gr.Dropdown.update(choices=conversations)
+
 
 def load_chat_history(fileobj):
     with open('conversation/'+fileobj+'.json', "r") as f:
@@ -145,8 +154,9 @@ def load_chat_history(fileobj):
     context = history["context"]
     chathistory = []
     for i in range(0, len(context), 2):
-        chathistory.append((parse_text(context[i]["content"]), parse_text(context[i+1]["content"])))
-    return chathistory , history["system"], context, history["system"]["content"],fileobj
+        chathistory.append(
+            (parse_text(context[i]["content"]), parse_text(context[i+1]["content"])))
+    return chathistory, history["system"], context, history["system"]["content"], fileobj
 
 
 def get_history_names():
@@ -156,15 +166,19 @@ def get_history_names():
 
 
 def reset_state():
-    return [], [],'新对话'
+    return [], [], '新对话'
+
 
 def update_system(new_system_prompt):
     return {"role": "system", "content": new_system_prompt}
+
+
 def replace_system_prompt(selectSystemPrompt):
     return {"role": "system", "content": my_system_prompts[selectSystemPrompt]}
 
+
 def get_latest():
-    #找到最近修改的文件
+    # 找到最近修改的文件
     path = "conversation"    # 设置目标文件夹路径
     files = os.listdir(path)  # 获取目标文件夹下所有文件的文件名
 
@@ -183,76 +197,97 @@ def get_latest():
     newest_file = file_list[0][0]
     return newest_file.split('.')[0]
 
+
 with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
-{background-color: #f1f1f1};
+{height: 60vh}
 ''') as demo:
-
 
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
     topic = gr.State("未命名对话历史记录")
-    #读取聊天记录文件
+    # 读取聊天记录文件
     latestfile_var = get_latest()
     conversations = os.listdir('conversation')
-    conversations = [i[:-5] for i in conversations if i[-4:]=='json']
+    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
 
-    with gr.Row().style(container=True):
-        conversationSelect = gr.Dropdown(conversations,label="选择历史对话").style(container=True)
-        readBtn = gr.Button("📁 读取对话").style(container=True)
+    with gr.Box():
+        with gr.Row():
+            conversationSelect = gr.Dropdown(
+                conversations, label="选择历史对话").style(container=True)
+            readBtn = gr.Button("📁 读取对话").style(container=True)
+            
+    with gr.Box():
+        with gr.Row():
+            with gr.Column(scale=1,min_width=20,variant='panel'):
+                emptyBtn = gr.Button("🧹")
+                retryBtn = gr.Button("🔄")
+                delLastBtn = gr.Button("🗑️")
+                reduceTokenBtn = gr.Button("♻️")
+            with gr.Column(scale=15):
+                chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
+                with gr.Row():
+                    with gr.Column(scale=15):
+                        txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
+                            container=False)
+                    with gr.Column(min_width=20, scale=1):
+                        submitBtn = gr.Button("🚀", variant="primary")
 
-    chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
+    with gr.Accordion(label='聊天设定'):
+        with gr.Row().style(container=True):
+            selectSystemPrompt = gr.Dropdown(
+                list(my_system_prompts), label="内置聊天设定").style(container=True)
+            replaceSystemPromptBtn = gr.Button("📁 替换设定").style(container=True)
+        newSystemPrompt = gr.Textbox(
+            show_label=True, placeholder=f"在这里输入新的聊天设定...", label="自定义聊天设定").style(container=True)
+        systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt,
+                                         interactive=False, label="目前的聊天设定", max_lines=3).style(container=True)
 
-    with gr.Row():
-        with gr.Column(scale=12):
-            txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(container=False)
-        with gr.Column(min_width=50, scale=1):
-            submitBtn = gr.Button("🚀", variant="primary")
-    with gr.Row():
-        emptyBtn = gr.Button("🧹 新的对话")
-        retryBtn = gr.Button("🔄 重新生成")
-        delLastBtn = gr.Button("🗑️ 删除上条对话")
-        reduceTokenBtn = gr.Button("♻️ 总结")
+    with gr.Accordion(label='对话另存为', open=False):
+        with gr.Row().style(container=True):
+            saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...",
+                                      label="保存文件名", value=latestfile_var).style(container=True)
+            saveBtn = gr.Button("💾 另存为对话").style(container=True)
 
-    with gr.Row().style(container=True):
-        selectSystemPrompt = gr.Dropdown(list(my_system_prompts),label="内置聊天设定").style(container=True)
-        replaceSystemPromptBtn = gr.Button("📁 替换设定").style(container=True)
-    newSystemPrompt = gr.Textbox(show_label=True, placeholder=f"在这里输入新的聊天设定...", label="自定义聊天设定").style(container=True)
-    systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt, interactive=False, label="目前的聊天设定",max_lines=3).style(container=True)
+    # 加载聊天记录文件
 
-    with gr.Row().style(container=True):
-        saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...", label="保存文件名", value=latestfile_var).style(container=True)
-        saveBtn = gr.Button("💾 另存为对话").style(container=True)
-
-    
-    #加载聊天记录文件
     def refresh_conversation():
         latestfile = get_latest()
-        print('识别到最新文件：',latestfile)
+        print('识别到最新文件：', latestfile)
         conversations = os.listdir('conversation')
-        conversations = [i[:-5] for i in conversations if i[-4:]=='json']
-        chatbot, systemPrompt, context, systemPromptDisplay,latestfile = load_chat_history(latestfile)
-        return gr.Dropdown.update(choices=conversations),chatbot, systemPrompt, context, systemPromptDisplay,latestfile
-    
-    demo.load(refresh_conversation,inputs=None,outputs=[conversationSelect,chatbot, systemPrompt, context, systemPromptDisplay,latestfile])
+        conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
+        chatbot, systemPrompt, context, systemPromptDisplay, latestfile = load_chat_history(
+            latestfile)
+        return gr.Dropdown.update(choices=conversations), chatbot, systemPrompt, context, systemPromptDisplay, latestfile
 
-    demo.load(load_chat_history, latestfile, [chatbot, systemPrompt, context, systemPromptDisplay,latestfile], show_progress=True)
-
-    txt.submit(predict, [chatbot, txt, systemPrompt, context,saveFileName], [chatbot, context], show_progress=True)
-    txt.submit(lambda :"", None, txt)
-    submitBtn.click(predict, [chatbot, txt, systemPrompt, context,saveFileName], [chatbot, context], show_progress=True)
-    submitBtn.click(lambda :"", None, txt)
-    emptyBtn.click(reset_state, outputs=[chatbot, context,saveFileName])
+    demo.load(refresh_conversation, inputs=None, outputs=[
+              conversationSelect, chatbot, systemPrompt, context, systemPromptDisplay, latestfile])
+    demo.load(load_chat_history, latestfile, [
+              chatbot, systemPrompt, context, systemPromptDisplay, latestfile], show_progress=True)
+    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
+               chatbot, context], show_progress=True)
+    txt.submit(lambda: "", None, txt)
+    #submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
+    #                chatbot, context], show_progress=True)
+    #submitBtn.click(lambda: "", None, txt)
+    emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
-    newSystemPrompt.submit(lambda :"", None, newSystemPrompt)
-    retryBtn.click(retry, [chatbot, systemPrompt, context], [chatbot, context], show_progress=True)
-    delLastBtn.click(delete_last_conversation, [chatbot, context], [chatbot, context], show_progress=True)
-    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [chatbot, context], show_progress=True)
+    newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
+    retryBtn.click(retry, [chatbot, systemPrompt, context], [
+                   chatbot, context], show_progress=True)
+    delLastBtn.click(delete_last_conversation, [chatbot, context], [
+                     chatbot, context], show_progress=True)
+    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [
+                         chatbot, context], show_progress=True)
+    saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
+                  conversationSelect], show_progress=True)
+    readBtn.click(load_chat_history, conversationSelect, [
+                  chatbot, systemPrompt, context, systemPromptDisplay, saveFileName], show_progress=True)
+    replaceSystemPromptBtn.click(
+        replace_system_prompt, selectSystemPrompt, systemPrompt)
+    replaceSystemPromptBtn.click(
+        lambda x: my_system_prompts[x], selectSystemPrompt, systemPromptDisplay)
     
-    saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [conversationSelect],show_progress=True)
-    readBtn.click(load_chat_history, conversationSelect, [chatbot, systemPrompt, context, systemPromptDisplay,saveFileName], show_progress=True)
-    replaceSystemPromptBtn.click(replace_system_prompt, selectSystemPrompt,systemPrompt)
-    replaceSystemPromptBtn.click(lambda x: my_system_prompts[x], selectSystemPrompt,systemPromptDisplay)
 demo.launch(share=False)
