@@ -7,14 +7,23 @@ import datetime
 import sys
 import markdown
 from my_system_prompts import my_system_prompts
-f = open('./apikey')
-apikey = f.readline()
-f.close()
+from configparser import ConfigParser
 
-my_api_key = apikey    # 在这里输入你的 API 密钥
+config_path = os.path.join(os.path.dirname(
+    os.path.abspath(__file__)), 'config.ini')
+config = ConfigParser()
+config.read(config_path)
+if not config.has_section('my_api_key'):
+    config.add_section('my_api_key')
+    
+try:
+    my_api_key = config['my_api_key']['api_key']
+except:
+    my_api_key = "" 
+print(my_api_key)
+# 在这里输入你的 API 密钥
+initial_prompt = "You are a helpful assistant."
 
-initial_prompt = '''
-'''
 if my_api_key == "":
     my_api_key = os.environ.get('my_api_key')
 
@@ -22,8 +31,30 @@ if my_api_key == "empty":
     print("Please give a api key!")
     sys.exit(1)
 
-openai.api_key = my_api_key
+if my_api_key == "":
+    initial_keytxt = None
+elif len(str(my_api_key)) == 51:
+    initial_keytxt = "api-key：" + str(my_api_key[:4] + "..." + my_api_key[-4:])
+else:
+    initial_keytxt = "默认api-key无效，请重新输入"
 
+def set_apikey(new_api_key, myKey):
+    try:
+        get_response(update_system(initial_prompt), [{"role": "user", "content": "test"}], new_api_key)
+    except openai.error.AuthenticationError:
+        return "无效的api-key", myKey
+    except openai.error.Timeout:
+        return "请求超时，请检查网络设置", myKey
+    except openai.error.APIConnectionError:
+        return "网络错误", myKey
+    except:
+        return "发生了未知错误Orz", myKey
+    
+    encryption_str = "验证成功，api-key已做遮挡处理：" + new_api_key[:4] + "..." + new_api_key[-4:]
+    config.set('my_api_key', 'api_key', new_api_key)
+    with open(config_path, 'w') as configfile:
+        config.write(configfile)
+    return encryption_str, new_api_key
 
 def parse_text(text):
     lines = text.split("\n")
@@ -42,7 +73,8 @@ def parse_text(text):
     return "".join(lines)
 
 
-def get_response(system, context, raw=False):
+def get_response(system, context, myKey,raw=False):
+    openai.api_key = myKey
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[system, *context],
@@ -55,14 +87,14 @@ def get_response(system, context, raw=False):
         return message, parse_text(message)
 
 
-def predict(chatbot, input_sentence, system, context, filepath):
+def predict(chatbot, input_sentence, system, context, filepath,myKey):
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
 
     
     try:
-        message, message_with_stats = get_response(system, context)
+        message, message_with_stats = get_response(system, context,myKey)
     except openai.error.AuthenticationError:
         chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
         context = context[:-1]
@@ -98,10 +130,10 @@ def predict(chatbot, input_sentence, system, context, filepath):
     return chatbot, context
 
 
-def retry(chatbot, system, context):
+def retry(chatbot, system, context,myKey):
     if len(context) == 0:
         return [], []
-    message, message_with_stats = get_response(system, context[:-1])
+    message, message_with_stats = get_response(system, context[:-1],myKey)
     context[-1] = {"role": "assistant", "content": message}
 
     chatbot[-1] = (context[-2]["content"], message_with_stats)
@@ -117,12 +149,12 @@ def delete_last_conversation(chatbot, context):
     return chatbot, context
 
 
-def reduce_token(chatbot, system, context):
+def reduce_token(chatbot, system, context,myKey):
     text = "请把上面的聊天内容总结一下"
     context.append(
         {"role": "user", "content": text})
 
-    response = get_response(system, context, raw=True)
+    response = get_response(system, context, myKey,raw=True)
 
     optmz_str = markdown.markdown(response["choices"][0]["message"]["content"])
     chatbot.append((text, optmz_str))
@@ -133,12 +165,12 @@ def reduce_token(chatbot, system, context):
         {"role": "assistant", "content": response["choices"][0]["message"]["content"]})
     return chatbot, context
 
-def translate_eng(chatbot, system, context):
+def translate_eng(chatbot, system, context,myKey):
     text = "请把你的回答翻译成英语"
     context.append(
         {"role": "user", "content": text})
 
-    response = get_response(system, context, raw=True)
+    response = get_response(system, context, myKey,raw=True)
 
     optmz_str = markdown.markdown(response["choices"][0]["message"]["content"])
     chatbot.append((text, optmz_str))
@@ -212,6 +244,7 @@ def get_latest():
     return newest_file.split('.')[0]
 
 
+
 with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
 {height: 60vh;}
@@ -219,6 +252,7 @@ with gr.Blocks(title='聊天机器人', css='''
 
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
+    myKey = gr.State(my_api_key)
     topic = gr.State("未命名对话历史记录")
     # 读取聊天记录文件
     latestfile_var = get_latest()
@@ -226,10 +260,13 @@ with gr.Blocks(title='聊天机器人', css='''
     conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
 
-    with gr.Box():
-        with gr.Row(variant='panel'):
+    with gr.Accordion(label="API Key",open=False):
+        keyTxt = gr.Textbox(placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt).style(container=True)
+
+    with gr.Accordion(label="选择历史对话",open=True):
+        with gr.Row():
             conversationSelect = gr.Dropdown(
-                conversations,value=latestfile_var, label="选择历史对话").style(container=True)
+                conversations,value=latestfile_var,show_label=False,  label="选择历史对话").style(container=True)
             readBtn = gr.Button("📁 读取对话").style(container=True)
             
     with gr.Box():
@@ -264,10 +301,11 @@ with gr.Blocks(title='聊天机器人', css='''
 
     with gr.Box():
         gr.Markdown('对话另存为')
-        with gr.Row().style(container=True):
+        with gr.Row():
             with gr.Column(scale=15):
-                saveFileName = gr.Textbox(show_label=True, placeholder=f"在这里输入保存的文件名...",
-                                        label="保存文件名", value=latestfile_var).style(container=True)
+                saveFileName = gr.Textbox(show_label=False, placeholder=f"在这里输入保存的文件名...",
+                                         value=latestfile_var).style(
+                            container=False)
             with gr.Column(min_width=20,scale=1):
                 saveBtn = gr.Button("💾").style(container=True)
 
@@ -286,23 +324,23 @@ with gr.Blocks(title='聊天机器人', css='''
               conversationSelect, chatbot, systemPrompt, context, systemPromptDisplay, latestfile])
     demo.load(load_chat_history, latestfile, [
               chatbot, systemPrompt, context, systemPromptDisplay, latestfile], show_progress=True)
-    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
+    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName,myKey], [
                chatbot, context], show_progress=True)
     txt.submit(lambda: "", None, txt)
-    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
+    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName,myKey], [
                     chatbot, context], show_progress=True,scroll_to_output = True)
     submitBtn.click(lambda: "", None, txt)
     emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
-    retryBtn.click(retry, [chatbot, systemPrompt, context], [
+    retryBtn.click(retry, [chatbot, systemPrompt, context,myKey], [
                    chatbot, context], show_progress=True)
     delLastBtn.click(delete_last_conversation, [chatbot, context], [
                      chatbot, context], show_progress=True)
-    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [
+    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context,myKey], [
                          chatbot, context], show_progress=True)
-    translateBtn.click(translate_eng, [chatbot, systemPrompt, context], [
+    translateBtn.click(translate_eng, [chatbot, systemPrompt, context,myKey], [
                          chatbot, context], show_progress=True)
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
                   conversationSelect], show_progress=True)
@@ -312,7 +350,8 @@ with gr.Blocks(title='聊天机器人', css='''
         replace_system_prompt, selectSystemPrompt, systemPrompt)
     replaceSystemPromptBtn.click(
         lambda x: my_system_prompts[x], selectSystemPrompt, systemPromptDisplay)
-    
+    keyTxt.submit(set_apikey, [keyTxt, myKey], [keyTxt, myKey], show_progress=True)
+
     saveFileName.change(lambda x:'<center>'+x+'</center>',saveFileName,thisconvername)
 
 demo.launch(share=False)

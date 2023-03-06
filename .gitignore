@@ -1,7 +1,8 @@
 .DS_Store
 *.json
-apikey
+config.ini
 test.ipynb
+apikey
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
