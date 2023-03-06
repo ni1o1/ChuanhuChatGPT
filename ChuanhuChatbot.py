@@ -37,6 +37,8 @@ elif len(str(my_api_key)) == 51:
 else:
     initial_keytxt = "默认api-key无效，请重新输入"
 
+
+
 def set_apikey(new_api_key, myKey):
     try:
         get_response(update_system(initial_prompt), [{"role": "user", "content": "test"}], new_api_key)
@@ -127,17 +129,6 @@ def predict(chatbot, input_sentence, system, context, filepath,myKey):
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
     return chatbot, context
-
-
-def retry(chatbot, system, context,myKey):
-    if len(context) == 0:
-        return [], []
-    message, message_with_stats = get_response(system, context[:-1],myKey)
-    context[-1] = {"role": "assistant", "content": message}
-
-    chatbot[-1] = (context[-2]["content"], message_with_stats)
-    return chatbot, context
-
 
 def delete_last_conversation(chatbot, context):
     if len(context) == 0:
@@ -259,9 +250,9 @@ with gr.Blocks(title='聊天机器人', css='''
     conversations = os.listdir('conversation')
     conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
-
-    with gr.Accordion(label="API Key",open=False):
-        keyTxt = gr.Textbox(placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt).style(container=True)
+    print(my_api_key)
+    
+    keyTxt = gr.Textbox(show_label=False,placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt,visible=len(str(my_api_key)) != 51).style(container=False)
 
     with gr.Accordion(label="选择历史对话",open=True):
         with gr.Row():
@@ -273,23 +264,24 @@ with gr.Blocks(title='聊天机器人', css='''
         with gr.Row():
             with gr.Column(scale=15):
                 thisconvername = gr.Markdown('<center>'+latestfile_var+'</center>')
+                gr.Markdown('')
         with gr.Row():
-            with gr.Column(scale=1,min_width=20,variant='panel'):
-                clearBtn = gr.Button("🗑️")
-                retryBtn = gr.Button("🔁")
-                delLastBtn = gr.Button("🔙")
-                reduceTokenBtn = gr.Button("📝")
-                translateBtn = gr.Button("🔠")
-            with gr.Column(scale=15):
+            with gr.Column(scale=1,min_width=68):
+                emptyBtn = gr.Button("新建")
+                clearBtn = gr.Button("清空")
+                delLastBtn = gr.Button("撤回")
+                reduceTokenBtn = gr.Button("总结")
+                translateBtn = gr.Button("翻英")
+
+            with gr.Column(scale=12):
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
                     with gr.Column(scale=12):
                         txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
                             container=False)
                     with gr.Column(min_width=20, scale=1):
-                        submitBtn = gr.Button("🚀", variant="primary")
-                    with gr.Column(scale=1,min_width=20):
-                        emptyBtn = gr.Button("🆕")
+                        submitBtn = gr.Button("↑", variant="primary")
+                        
 
     with gr.Box():
         gr.Markdown('聊天设定')
@@ -311,6 +303,7 @@ with gr.Blocks(title='聊天机器人', css='''
                             container=False)
             with gr.Column(min_width=20,scale=1):
                 saveBtn = gr.Button("💾").style(container=True)
+
 
     # 加载聊天记录文件
 
@@ -338,8 +331,6 @@ with gr.Blocks(title='聊天机器人', css='''
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
-    retryBtn.click(retry, [chatbot, systemPrompt, context,myKey], [
-                   chatbot, context], show_progress=True)
     delLastBtn.click(delete_last_conversation, [chatbot, context], [
                      chatbot, context], show_progress=True)
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context,myKey], [
