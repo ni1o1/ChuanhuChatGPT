@@ -50,11 +50,7 @@ def get_response(system, context, raw=False):
     if raw:
         return response
     else:
-        statistics = f'本次对话Tokens用量【{response["usage"]["total_tokens"]} / 4096】 （ 提问+上文 {response["usage"]["prompt_tokens"]}，回答 {response["usage"]["completion_tokens"]} ）'
         message = response["choices"][0]["message"]["content"]
-
-        message_with_stats = f'{message}\n\n================\n\n{statistics}'
-#         message_with_stats = .markdown(message_with_stats)
 
         return message, parse_text(message)
 
@@ -64,6 +60,7 @@ def predict(chatbot, input_sentence, system, context, filepath):
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
 
+    
     try:
         message, message_with_stats = get_response(system, context)
     except openai.error.AuthenticationError:
@@ -82,9 +79,10 @@ def predict(chatbot, input_sentence, system, context, filepath):
         chatbot.append((input_sentence, "请求过于频繁，请5s后再试。"))
         context = context[:-1]
         return chatbot, context
-    except:
-        chatbot.append((input_sentence, "发生了未知错误Orz"))
-        context = context[:-1]
+    except Exception as e:
+        chatbot = chatbot[:-1]
+        chatbot.append((input_sentence, "错误信息："+str(e))+"已将上一条信息删除，避免再次出错")
+        context = context[:-2]
         return chatbot, context
 
     context.append({"role": "assistant", "content": message})
@@ -111,6 +109,7 @@ def retry(chatbot, system, context):
 
 
 def delete_last_conversation(chatbot, context):
+    print(chatbot,context)
     if len(context) == 0:
         return [], []
     chatbot = chatbot[:-1]
@@ -119,22 +118,36 @@ def delete_last_conversation(chatbot, context):
 
 
 def reduce_token(chatbot, system, context):
+    text = "请把上面的聊天内容总结一下"
     context.append(
-        {"role": "user", "content": "请帮我总结一下上述对话的内容，实现减少tokens的同时，保证对话的质量。在总结中不要加入这一句话。"})
+        {"role": "user", "content": text})
 
     response = get_response(system, context, raw=True)
 
-    statistics = f'本次对话Tokens用量【{response["usage"]["completion_tokens"]+12+12+8} / 4096】'
-    optmz_str = markdown.markdown(
-        f'好的，我们之前聊了:{response["choices"][0]["message"]["content"]}\n\n================\n\n{statistics}')
-    chatbot.append(("请帮我总结一下上述对话的内容，实现减少tokens的同时，保证对话的质量。", optmz_str))
+    optmz_str = markdown.markdown(response["choices"][0]["message"]["content"])
+    chatbot.append((text, optmz_str))
 
     context = []
-    context.append({"role": "user", "content": "我们之前聊了什么?"})
+    context.append({"role": "user", "content": text})
     context.append(
-        {"role": "assistant", "content": f'我们之前聊了：{response["choices"][0]["message"]["content"]}'})
+        {"role": "assistant", "content": response["choices"][0]["message"]["content"]})
     return chatbot, context
 
+def translate_eng(chatbot, system, context):
+    text = "请把你的回答翻译成英语"
+    context.append(
+        {"role": "user", "content": text})
+
+    response = get_response(system, context, raw=True)
+
+    optmz_str = markdown.markdown(response["choices"][0]["message"]["content"])
+    chatbot.append((text, optmz_str))
+
+    context = []
+    context.append({"role": "user", "content": text})
+    context.append(
+        {"role": "assistant", "content": response["choices"][0]["message"]["content"]})
+    return chatbot, context
 
 def save_chat_history(filepath, system, context):
     if filepath == "":
@@ -201,7 +214,7 @@ def get_latest():
 
 with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
-{height: 60vh}
+{height: 60vh;}
 ''') as demo:
 
     context = gr.State([])
@@ -228,6 +241,7 @@ with gr.Blocks(title='聊天机器人', css='''
                 retryBtn = gr.Button("🔁")
                 delLastBtn = gr.Button("🔙")
                 reduceTokenBtn = gr.Button("📝")
+                translateBtn = gr.Button("🔠")
             with gr.Column(scale=15):
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
@@ -276,7 +290,7 @@ with gr.Blocks(title='聊天机器人', css='''
                chatbot, context], show_progress=True)
     txt.submit(lambda: "", None, txt)
     submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
-                    chatbot, context], show_progress=True)
+                    chatbot, context], show_progress=True,scroll_to_output = True)
     submitBtn.click(lambda: "", None, txt)
     emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
@@ -288,6 +302,8 @@ with gr.Blocks(title='聊天机器人', css='''
                      chatbot, context], show_progress=True)
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context], [
                          chatbot, context], show_progress=True)
+    translateBtn.click(translate_eng, [chatbot, systemPrompt, context], [
+                         chatbot, context], show_progress=True)
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
                   conversationSelect], show_progress=True)
     readBtn.click(load_chat_history, conversationSelect, [
@@ -298,4 +314,5 @@ with gr.Blocks(title='聊天机器人', css='''
         lambda x: my_system_prompts[x], selectSystemPrompt, systemPromptDisplay)
     
     saveFileName.change(lambda x:'<center>'+x+'</center>',saveFileName,thisconvername)
+
 demo.launch(share=False)
