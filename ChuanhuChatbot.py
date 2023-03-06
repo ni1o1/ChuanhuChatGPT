@@ -7,7 +7,7 @@ import datetime
 import sys
 import markdown
 from my_system_prompts import my_system_prompts
-f = open('apikey')
+f = open('./apikey')
 apikey = f.readline()
 f.close()
 
@@ -190,7 +190,8 @@ def get_latest():
         file_path = os.path.join(path, file)
         mtime = os.path.getmtime(file_path)
         mtime_datetime = datetime.datetime.fromtimestamp(mtime)
-        file_list.append((file, mtime_datetime))
+        if file[-4:]=='json':
+            file_list.append((file, mtime_datetime))
 
     # 按照最后修改时间排序，获取最新修改的文件名
     file_list.sort(key=lambda x: x[1], reverse=True)
@@ -264,7 +265,7 @@ with gr.Blocks(title='聊天机器人', css='''
         chatbot, systemPrompt, context, systemPromptDisplay, latestfile = load_chat_history(
             latestfile)
         return gr.Dropdown.update(choices=conversations), chatbot, systemPrompt, context, systemPromptDisplay, latestfile
-
+    
     demo.load(refresh_conversation, inputs=None, outputs=[
               conversationSelect, chatbot, systemPrompt, context, systemPromptDisplay, latestfile])
     demo.load(load_chat_history, latestfile, [
@@ -272,9 +273,9 @@ with gr.Blocks(title='聊天机器人', css='''
     txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
                chatbot, context], show_progress=True)
     txt.submit(lambda: "", None, txt)
-    #submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
-    #                chatbot, context], show_progress=True)
-    #submitBtn.click(lambda: "", None, txt)
+    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName], [
+                    chatbot, context], show_progress=True)
+    submitBtn.click(lambda: "", None, txt)
     emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
