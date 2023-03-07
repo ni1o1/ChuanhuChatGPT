@@ -15,11 +15,11 @@ config = ConfigParser()
 config.read(config_path)
 if not config.has_section('my_api_key'):
     config.add_section('my_api_key')
-    
+
 try:
     my_api_key = config['my_api_key']['api_key']
 except:
-    my_api_key = "" 
+    my_api_key = ""
 # 在这里输入你的 API 密钥
 initial_prompt = "You are a helpful assistant."
 
@@ -38,10 +38,10 @@ else:
     initial_keytxt = "默认api-key无效，请重新输入"
 
 
-
 def set_apikey(new_api_key, myKey):
     try:
-        get_response(update_system(initial_prompt), [{"role": "user", "content": "test"}], new_api_key)
+        get_response(update_system(initial_prompt), [
+                     {"role": "user", "content": "test"}], new_api_key)
     except openai.error.AuthenticationError:
         return "无效的api-key", myKey
     except openai.error.Timeout:
@@ -50,12 +50,14 @@ def set_apikey(new_api_key, myKey):
         return "网络错误", myKey
     except:
         return "发生了未知错误Orz", myKey
-    
-    encryption_str = "验证成功，api-key已做遮挡处理：" + new_api_key[:4] + "..." + new_api_key[-4:]
+
+    encryption_str = "验证成功，api-key已做遮挡处理：" + \
+        new_api_key[:4] + "..." + new_api_key[-4:]
     config.set('my_api_key', 'api_key', new_api_key)
     with open(config_path, 'w') as configfile:
         config.write(configfile)
     return encryption_str, new_api_key
+
 
 def parse_text(text):
     lines = text.split("\n")
@@ -74,7 +76,7 @@ def parse_text(text):
     return "".join(lines)
 
 
-def get_response(system, context, myKey,raw=False):
+def get_response(system, context, myKey, raw=False):
     openai.api_key = myKey
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -86,17 +88,17 @@ def get_response(system, context, myKey,raw=False):
         statistics = int(response["usage"]["total_tokens"])/4096
         message = response["choices"][0]["message"]["content"]
 
-        return message, parse_text(message),statistics
+        return message, parse_text(message), {'对话Token用量': min(statistics, 1)}
 
 
-def predict(chatbot, input_sentence, system, context, filepath,myKey):
+def predict(chatbot, input_sentence, system, context, filepath, myKey):
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
 
-    
     try:
-        message, message_with_stats,statistics = get_response(system, context,myKey)
+        message, message_with_stats, statistics = get_response(
+            system, context, myKey)
     except openai.error.AuthenticationError:
         chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
         context = context[:-1]
@@ -122,53 +124,9 @@ def predict(chatbot, input_sentence, system, context, filepath,myKey):
 
     chatbot.append((input_sentence, message_with_stats))
     # 保存
-    if filepath == "":
-        return
-    history = {"system": system, "context": context}
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
 
-    with open(f"conversation/{filepath}.json", "w") as f:
-        json.dump(history, f)
-    return chatbot, context,{'对话Token用量':min(statistics,1)}
-
-def delete_last_conversation(chatbot, context):
-    if len(context) == 0:
-        return [], []
-    chatbot = chatbot[:-1]
-    context = context[:-2]
-    return chatbot, context
-
-
-def reduce_token(chatbot, system, context,myKey):
-    text = "请把上面的聊天内容总结一下"
-    context.append(
-        {"role": "user", "content": text})
-
-    response = get_response(system, context, myKey,raw=True)
-
-    optmz_str = markdown.markdown(response["choices"][0]["message"]["content"])
-    chatbot.append((text, optmz_str))
-
-    context = []
-    context.append({"role": "user", "content": text})
-    context.append(
-        {"role": "assistant", "content": response["choices"][0]["message"]["content"]})
-    return chatbot, context
-
-def translate_eng(chatbot, system, context,myKey):
-    text = "请把你的回答翻译成英语"
-    context.append(
-        {"role": "user", "content": text})
-
-    response = get_response(system, context, myKey,raw=True)
-
-    optmz_str = markdown.markdown(response["choices"][0]["message"]["content"])
-    chatbot.append((text, optmz_str))
-
-    context = []
-    context.append({"role": "user", "content": text})
-    context.append(
-        {"role": "assistant", "content": response["choices"][0]["message"]["content"]})
-    return chatbot, context
 
 def save_chat_history(filepath, system, context):
     if filepath == "":
@@ -202,8 +160,11 @@ def get_history_names():
 def reset_state():
     return [], [], '新对话'
 
-def clear_state():
+
+def clear_state(filepath,system):
+    save_chathistory(filepath, system, [])
     return [], []
+
 
 def update_system(new_system_prompt):
     return {"role": "system", "content": new_system_prompt}
@@ -226,7 +187,7 @@ def get_latest():
         file_path = os.path.join(path, file)
         mtime = os.path.getmtime(file_path)
         mtime_datetime = datetime.datetime.fromtimestamp(mtime)
-        if file[-4:]=='json':
+        if file[-4:] == 'json':
             file_list.append((file, mtime_datetime))
 
     # 按照最后修改时间排序，获取最新修改的文件名
@@ -234,7 +195,100 @@ def get_latest():
     newest_file = file_list[0][0]
     return newest_file.split('.')[0]
 
-title = """<h1 align="center">川虎ChatGPT 🚀 小旭学长改版</h1>"""
+
+def sendmessage(text, system, context, chatbot, myKey):
+    context.append(
+        {"role": "user", "content": text})
+    message, _, statistics = get_response(
+        system, context, myKey)
+
+    chatbot.append((text, message))
+    context.append({"role": "assistant", "content": message})
+    return chatbot, context, statistics
+
+
+def save_chathistory(filepath, system, context):
+    # 保存
+    if filepath == "":
+        return
+    history = {"system": system, "context": context}
+
+    with open(f"conversation/{filepath}.json", "w") as f:
+        json.dump(history, f)
+
+# 自定义功能
+
+
+def delete_last_conversation(chatbot, system, context, filepath):
+    if len(context) == 0:
+        return [], []
+    chatbot = chatbot[:-1]
+    context = context[:-2]
+    save_chathistory(filepath, system, context)
+    return chatbot, context
+
+
+def reduce_token(chatbot, system, context, myKey, filepath):
+    text = "请把上面的聊天内容总结一下"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+
+def translate_eng(chatbot, system, context, myKey, filepath):
+    text = "请把你的回答翻译成英语"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+
+def translate_ch(chatbot, system, context, myKey, filepath):
+    text = "请把你的回答翻译成中文"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+
+def brainstorn(chatbot, system, context, myKey, filepath):
+    text = "头脑风暴一下，你还有什么建议呢？"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+
+def shorter(chatbot, system, context, myKey, filepath):
+    text = "把你上面的回答精简一下"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+
+def longer(chatbot, system, context, myKey, filepath):
+    text = "把你上面的回答扩展一下"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+def scholar(chatbot, system, context, myKey, filepath):
+    text = "把你上面的回答换为更加正式、专业、学术的语气"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+def points(chatbot, system, context, myKey, filepath):
+    text = "把你上面的回答分点阐述"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+title = """<h3 align="center">川虎ChatGPT 🚀 小旭学长改版</h3>"""
 
 with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
@@ -249,31 +303,39 @@ with gr.Blocks(title='聊天机器人', css='''
     conversations = os.listdir('conversation')
     conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
-    
+
     gr.HTML(title)
     if len(str(my_api_key)) != 51:
-        keyTxt = gr.Textbox(show_label=True,label='OpenAI API-key',placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
+        keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
+                            placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
-    with gr.Accordion(label="选择历史对话",open=True):
+    with gr.Accordion(label="选择历史对话", open=True):
         with gr.Row():
             conversationSelect = gr.Dropdown(
-                conversations,value=latestfile_var,show_label=False,  label="选择历史对话").style(container=True)
+                conversations, value=latestfile_var, show_label=False,  label="选择历史对话").style(container=False)
             readBtn = gr.Button("📁 读取对话").style(container=True)
-            
+
     with gr.Box():
         with gr.Row():
             with gr.Column(scale=15):
-                thisconvername = gr.Markdown('<center>'+latestfile_var+'</center>')
-                gr.Markdown('')
+                thisconvername = gr.Markdown(
+                    '<h5 align="center">'+latestfile_var+'</h5>')
+        
         with gr.Row():
-            with gr.Column(scale=1,min_width=68):
+            with gr.Column(scale=1, min_width=68):
                 emptyBtn = gr.Button("新建")
                 clearBtn = gr.Button("清空")
                 delLastBtn = gr.Button("撤回")
                 reduceTokenBtn = gr.Button("总结")
                 translateBtn = gr.Button("翻英")
-
+                translateChBtn = gr.Button("翻中")
+                brainstornBtn = gr.Button("联想")
+                shorterBtn = gr.Button("缩短")
+                longerBtn = gr.Button("扩展")
+                scholarBtn = gr.Button("专业")
+                pointsBtn = gr.Button("分点")
             with gr.Column(scale=12):
+                usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
                     with gr.Column(scale=12):
@@ -281,7 +343,7 @@ with gr.Blocks(title='聊天机器人', css='''
                             container=False)
                     with gr.Column(min_width=20, scale=1):
                         submitBtn = gr.Button("↑", variant="primary")
-        usage = gr.Label(show_label=False,value = {'对话Token用量':0}).style(container=False)
+
 
     with gr.Box():
         gr.Markdown('聊天设定')
@@ -299,13 +361,14 @@ with gr.Blocks(title='聊天机器人', css='''
         with gr.Row():
             with gr.Column(scale=15):
                 saveFileName = gr.Textbox(show_label=False, placeholder=f"在这里输入保存的文件名...",
-                                         value=latestfile_var).style(
-                            container=False)
-            with gr.Column(min_width=20,scale=1):
+                                          value=latestfile_var).style(
+                    container=False)
+            with gr.Column(min_width=20, scale=1):
                 saveBtn = gr.Button("💾").style(container=True)
 
     if len(str(my_api_key)) == 51:
-        keyTxt = gr.Textbox(show_label=True,label='OpenAI API-key',placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
+        keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
+                            placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
     # 加载聊天记录文件
 
@@ -317,28 +380,44 @@ with gr.Blocks(title='聊天机器人', css='''
         chatbot, systemPrompt, context, systemPromptDisplay, latestfile = load_chat_history(
             latestfile)
         return gr.Dropdown.update(choices=conversations), chatbot, systemPrompt, context, systemPromptDisplay, latestfile
-    
+
     demo.load(refresh_conversation, inputs=None, outputs=[
               conversationSelect, chatbot, systemPrompt, context, systemPromptDisplay, latestfile])
     demo.load(load_chat_history, latestfile, [
               chatbot, systemPrompt, context, systemPromptDisplay, latestfile], show_progress=True)
-    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName,myKey], [
-               chatbot, context,usage], show_progress=True)
+    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName, myKey], [
+               chatbot, context, usage], show_progress=True)
     txt.submit(lambda: "", None, txt)
-    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName,myKey], [
-                    chatbot, context,usage], show_progress=True,scroll_to_output = True)
+    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName, myKey], [
+                    chatbot, context, usage], show_progress=True, scroll_to_output=True)
     submitBtn.click(lambda: "", None, txt)
-    emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
-    clearBtn.click(clear_state, outputs=[chatbot, context])
+
     newSystemPrompt.submit(update_system, newSystemPrompt, systemPrompt)
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
-    delLastBtn.click(delete_last_conversation, [chatbot, context], [
+
+    emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
+
+    clearBtn.click(clear_state,[saveFileName, systemPrompt], outputs=[chatbot, context])
+
+    delLastBtn.click(delete_last_conversation, [chatbot, systemPrompt, context, saveFileName], [
                      chatbot, context], show_progress=True)
-    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context,myKey], [
-                         chatbot, context], show_progress=True)
-    translateBtn.click(translate_eng, [chatbot, systemPrompt, context,myKey], [
-                         chatbot, context], show_progress=True)
+    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                         chatbot, context, usage], show_progress=True)
+    translateBtn.click(translate_eng, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                       chatbot, context, usage], show_progress=True)
+    translateChBtn.click(translate_ch, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                         chatbot, context, usage], show_progress=True)
+    brainstornBtn.click(brainstorn, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                        chatbot, context, usage], show_progress=True)
+    shorterBtn.click(shorter, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                     chatbot, context, usage], show_progress=True)
+    longerBtn.click(longer, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                    chatbot, context, usage], show_progress=True)
+    scholarBtn.click(scholar, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                    chatbot, context, usage], show_progress=True)
+    pointsBtn.click(points, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                    chatbot, context, usage], show_progress=True)
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
                   conversationSelect], show_progress=True)
     readBtn.click(load_chat_history, conversationSelect, [
@@ -347,8 +426,10 @@ with gr.Blocks(title='聊天机器人', css='''
         replace_system_prompt, selectSystemPrompt, systemPrompt)
     replaceSystemPromptBtn.click(
         lambda x: my_system_prompts[x], selectSystemPrompt, systemPromptDisplay)
-    keyTxt.submit(set_apikey, [keyTxt, myKey], [keyTxt, myKey], show_progress=True)
+    keyTxt.submit(set_apikey, [keyTxt, myKey], [
+                  keyTxt, myKey], show_progress=True)
 
-    saveFileName.change(lambda x:'<center>'+x+'</center>',saveFileName,thisconvername)
+    saveFileName.change(lambda x: '<center>'+x+'</center>',
+                        saveFileName, thisconvername)
 
 demo.launch(share=False)
