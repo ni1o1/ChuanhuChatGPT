@@ -113,9 +113,8 @@ def predict(chatbot, input_sentence, system, context, filepath,myKey):
         context = context[:-1]
         return chatbot, context
     except Exception as e:
-        chatbot = chatbot[:-1]
         chatbot.append((input_sentence, "错误信息："+str(e)+"已将上一条信息删除，避免再次出错"))
-        context = context[:-2]
+        context = context[:-1]
         return chatbot, context
 
     context.append({"role": "assistant", "content": message})
@@ -352,4 +351,4 @@ with gr.Blocks(title='聊天机器人', css='''
 
     saveFileName.change(lambda x:'<center>'+x+'</center>',saveFileName,thisconvername)
 
-demo.launch(share=True)
+demo.launch(share=False)
