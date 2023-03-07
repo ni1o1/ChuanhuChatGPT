@@ -83,9 +83,10 @@ def get_response(system, context, myKey,raw=False):
     if raw:
         return response
     else:
+        statistics = int(response["usage"]["total_tokens"])/4096
         message = response["choices"][0]["message"]["content"]
 
-        return message, parse_text(message)
+        return message, parse_text(message),statistics
 
 
 def predict(chatbot, input_sentence, system, context, filepath,myKey):
@@ -95,7 +96,7 @@ def predict(chatbot, input_sentence, system, context, filepath,myKey):
 
     
     try:
-        message, message_with_stats = get_response(system, context,myKey)
+        message, message_with_stats,statistics = get_response(system, context,myKey)
     except openai.error.AuthenticationError:
         chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
         context = context[:-1]
@@ -127,7 +128,7 @@ def predict(chatbot, input_sentence, system, context, filepath,myKey):
 
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
-    return chatbot, context
+    return chatbot, context,{'对话Token用量':min(statistics,1)}
 
 def delete_last_conversation(chatbot, context):
     if len(context) == 0:
@@ -281,7 +282,7 @@ with gr.Blocks(title='聊天机器人', css='''
                             container=False)
                     with gr.Column(min_width=20, scale=1):
                         submitBtn = gr.Button("↑", variant="primary")
-                        
+        usage = gr.Label(show_label=False,value = {'对话Token用量':0}).style(container=False)
 
     with gr.Box():
         gr.Markdown('聊天设定')
@@ -323,10 +324,10 @@ with gr.Blocks(title='聊天机器人', css='''
     demo.load(load_chat_history, latestfile, [
               chatbot, systemPrompt, context, systemPromptDisplay, latestfile], show_progress=True)
     txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName,myKey], [
-               chatbot, context], show_progress=True)
+               chatbot, context,usage], show_progress=True)
     txt.submit(lambda: "", None, txt)
     submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName,myKey], [
-                    chatbot, context], show_progress=True,scroll_to_output = True)
+                    chatbot, context,usage], show_progress=True,scroll_to_output = True)
     submitBtn.click(lambda: "", None, txt)
     emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
     clearBtn.click(clear_state, outputs=[chatbot, context])
