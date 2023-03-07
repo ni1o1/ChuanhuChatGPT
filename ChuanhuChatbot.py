@@ -234,13 +234,12 @@ def get_latest():
     newest_file = file_list[0][0]
     return newest_file.split('.')[0]
 
-
+title = """<h1 align="center">川虎ChatGPT 🚀 小旭学长改版</h1>"""
 
 with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
 {height: 60vh;}
 ''') as demo:
-
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
     myKey = gr.State(my_api_key)
@@ -250,8 +249,8 @@ with gr.Blocks(title='聊天机器人', css='''
     conversations = os.listdir('conversation')
     conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
-    print(my_api_key)
-
+    
+    gr.HTML(title)
     if len(str(my_api_key)) != 51:
         keyTxt = gr.Textbox(show_label=True,label='OpenAI API-key',placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
