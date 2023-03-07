@@ -1,1 +1,1 @@
-{"system": {"role": "system", "content": "\u4f60\u662f\u4e00\u4e2aAI\u5c0f\u52a9\u624b"}, "context": []}
+{"system": {"role": "system", "content": "\u4f60\u662f\u4e00\u4e2aAI\u5c0f\u52a9\u624b"}, "context": [{"role": "user", "content": "\u6d4b\u8bd5"}, {"role": "assistant", "content": "\u60a8\u60f3\u8ba9\u6211\u8fdb\u884c\u4ec0\u4e48\u6837\u7684\u6d4b\u8bd5\u5462\uff1f"}]}

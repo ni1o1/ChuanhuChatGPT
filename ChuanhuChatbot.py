@@ -303,6 +303,12 @@ def points(chatbot, system, context, myKey, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
 
+def prase(chatbot, system, context, myKey, filepath):
+    text = "请你结合上面的内容，夸一夸我，给我一些鼓励"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
 
 title = """<h3 align="center">川虎ChatGPT 🚀 小旭学长改版</h3>"""
 
@@ -349,6 +355,7 @@ with gr.Blocks(title='聊天机器人', css='''
                 longerBtn = gr.Button("扩展")
                 scholarBtn = gr.Button("专业")
                 pointsBtn = gr.Button("分点")
+                praseBtn = gr.Button("鼓励")
             with gr.Column(scale=12):
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
@@ -357,7 +364,7 @@ with gr.Blocks(title='聊天机器人', css='''
                             container=False)
                     with gr.Column(min_width=20, scale=1):
                         submitBtn = gr.Button("↑", variant="primary")
-        usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
+                usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
 
     with gr.Box():
         gr.Markdown('聊天设定')
@@ -427,6 +434,8 @@ with gr.Blocks(title='聊天机器人', css='''
     scholarBtn.click(scholar, [chatbot, systemPrompt, context, myKey, saveFileName], [
         chatbot, context, usage], show_progress=True)
     pointsBtn.click(points, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                    chatbot, context, usage], show_progress=True)
+    praseBtn.click(prase, [chatbot, systemPrompt, context, myKey, saveFileName], [
                     chatbot, context, usage], show_progress=True)
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
                   conversationSelect], show_progress=True)
