@@ -95,7 +95,7 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
-
+    
     try:
         message, message_with_stats, statistics = get_response(
             system, context, myKey)
@@ -140,6 +140,18 @@ def save_chat_history(filepath, system, context):
     return gr.Dropdown.update(choices=conversations)
 
 
+def save_chat_history2(newname, oldname, system, context):
+    if newname != oldname:
+        history = {"system": system, "context": context}
+        with open(f"conversation/{newname}.json", "w") as f:
+            json.dump(history, f)
+
+        # os.remove(f"conversation/{oldname}.json")
+    conversations = os.listdir('conversation')
+    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
+    return gr.Dropdown.update(choices=conversations), newname
+
+
 def load_chat_history(fileobj):
     with open('conversation/'+fileobj+'.json', "r") as f:
         history = json.load(f)
@@ -158,10 +170,10 @@ def get_history_names():
 
 
 def reset_state():
-    return [], [], '新对话'
+    return [], [], '新对话，点击这里改名',update_system(initial_prompt),initial_prompt
 
 
-def clear_state(filepath,system):
+def clear_state(filepath, system):
     save_chathistory(filepath, system, [])
     return [], []
 
@@ -275,6 +287,7 @@ def longer(chatbot, system, context, myKey, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
 
+
 def scholar(chatbot, system, context, myKey, filepath):
     text = "把你上面的回答换为更加正式、专业、学术的语气"
     chatbot, context, statistics = sendmessage(
@@ -282,12 +295,15 @@ def scholar(chatbot, system, context, myKey, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
 
+
 def points(chatbot, system, context, myKey, filepath):
     text = "把你上面的回答分点阐述"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
+
+
 title = """<h3 align="center">川虎ChatGPT 🚀 小旭学长改版</h3>"""
 
 with gr.Blocks(title='聊天机器人', css='''
@@ -300,6 +316,7 @@ with gr.Blocks(title='聊天机器人', css='''
     topic = gr.State("未命名对话历史记录")
     # 读取聊天记录文件
     latestfile_var = get_latest()
+
     conversations = os.listdir('conversation')
     conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
     latestfile = gr.State(latestfile_var)
@@ -317,10 +334,8 @@ with gr.Blocks(title='聊天机器人', css='''
 
     with gr.Box():
         with gr.Row():
-            with gr.Column(scale=15):
-                thisconvername = gr.Markdown(
-                    '<h5 align="center">'+latestfile_var+'</h5>')
-        
+            saveFileName = gr.Textbox(label='对话名称',show_label=False, placeholder=f"在这里输入保存的文件名...", value=latestfile_var).style(container=False)
+        gr.Markdown('# ')
         with gr.Row():
             with gr.Column(scale=1, min_width=68):
                 emptyBtn = gr.Button("新建")
@@ -335,7 +350,6 @@ with gr.Blocks(title='聊天机器人', css='''
                 scholarBtn = gr.Button("专业")
                 pointsBtn = gr.Button("分点")
             with gr.Column(scale=12):
-                usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
                 chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
                 with gr.Row():
                     with gr.Column(scale=12):
@@ -343,7 +357,7 @@ with gr.Blocks(title='聊天机器人', css='''
                             container=False)
                     with gr.Column(min_width=20, scale=1):
                         submitBtn = gr.Button("↑", variant="primary")
-
+        usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
 
     with gr.Box():
         gr.Markdown('聊天设定')
@@ -359,10 +373,6 @@ with gr.Blocks(title='聊天机器人', css='''
     with gr.Box():
         gr.Markdown('对话另存为')
         with gr.Row():
-            with gr.Column(scale=15):
-                saveFileName = gr.Textbox(show_label=False, placeholder=f"在这里输入保存的文件名...",
-                                          value=latestfile_var).style(
-                    container=False)
             with gr.Column(min_width=20, scale=1):
                 saveBtn = gr.Button("💾").style(container=True)
 
@@ -374,7 +384,6 @@ with gr.Blocks(title='聊天机器人', css='''
 
     def refresh_conversation():
         latestfile = get_latest()
-        print('识别到最新文件：', latestfile)
         conversations = os.listdir('conversation')
         conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
         chatbot, systemPrompt, context, systemPromptDisplay, latestfile = load_chat_history(
@@ -396,9 +405,10 @@ with gr.Blocks(title='聊天机器人', css='''
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
 
-    emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName])
+    emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName,systemPrompt,systemPromptDisplay])
 
-    clearBtn.click(clear_state,[saveFileName, systemPrompt], outputs=[chatbot, context])
+    clearBtn.click(clear_state, [saveFileName, systemPrompt], outputs=[
+                   chatbot, context])
 
     delLastBtn.click(delete_last_conversation, [chatbot, systemPrompt, context, saveFileName], [
                      chatbot, context], show_progress=True)
@@ -415,7 +425,7 @@ with gr.Blocks(title='聊天机器人', css='''
     longerBtn.click(longer, [chatbot, systemPrompt, context, myKey, saveFileName], [
                     chatbot, context, usage], show_progress=True)
     scholarBtn.click(scholar, [chatbot, systemPrompt, context, myKey, saveFileName], [
-                    chatbot, context, usage], show_progress=True)
+        chatbot, context, usage], show_progress=True)
     pointsBtn.click(points, [chatbot, systemPrompt, context, myKey, saveFileName], [
                     chatbot, context, usage], show_progress=True)
     saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
@@ -429,7 +439,6 @@ with gr.Blocks(title='聊天机器人', css='''
     keyTxt.submit(set_apikey, [keyTxt, myKey], [
                   keyTxt, myKey], show_progress=True)
 
-    saveFileName.change(lambda x: '<center>'+x+'</center>',
-                        saveFileName, thisconvername)
+    #saveFileName.change(save_chat_history2, [saveFileName,latestfile, systemPrompt, context],[conversationSelect,latestfile],  show_progress=True)
 
 demo.launch(share=False)
