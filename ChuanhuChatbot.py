@@ -343,6 +343,9 @@ with gr.Blocks(title='聊天机器人', css='''
     position: relative !important;
     line-height:20px !important;
     }
+.user {
+    right: 50px;
+}
 .user::before {
     position: absolute;
     top: 10px;
@@ -354,6 +357,20 @@ with gr.Blocks(title='聊天机器人', css='''
     border-bottom: 5px solid transparent;
     border-left: 5px solid #7beb67;
     border-top: 5px solid transparent;
+}
+.user::after {
+    position: absolute;
+    content: '';
+    top: 0px;
+    right: -50px;
+    width: 35px;
+    height: 35px;
+    border-radius:3px !important;
+    background-image:url("https://img0.baidu.com/it/u=3828378951,1675897767&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500");
+    background-repeat: round;
+}
+.bot {
+    left: 50px;
 }
 .bot::before {
     position: absolute;
@@ -367,7 +384,17 @@ with gr.Blocks(title='聊天机器人', css='''
     border-left: 5px solid transparent;
     border-top: 5px solid transparent;
 }
-
+.bot::after {
+    position: absolute;
+    content: '';
+    top: 0px;
+    left: -50px;
+    width: 35px;
+    height: 35px;
+    border-radius:3px !important;
+    background-image:url("https://avatars.githubusercontent.com/u/53589767?s=96&v=4");
+    background-repeat: round;
+}
 
 ''') as demo:
     context = gr.State([])
