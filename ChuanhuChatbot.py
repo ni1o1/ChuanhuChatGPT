@@ -135,31 +135,6 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
 
-
-def save_chat_history(filepath, system, context):
-    if filepath == "":
-        return
-    history = {"system": system, "context": context}
-
-    with open(f"conversation/{filepath}.json", "w") as f:
-        json.dump(history, f)
-    conversations = os.listdir('conversation')
-    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
-    return gr.Dropdown.update(choices=conversations)
-
-
-def save_chat_history2(newname, oldname, system, context):
-    if newname != oldname:
-        history = {"system": system, "context": context}
-        with open(f"conversation/{newname}.json", "w") as f:
-            json.dump(history, f)
-
-        # os.remove(f"conversation/{oldname}.json")
-    conversations = os.listdir('conversation')
-    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
-    return gr.Dropdown.update(choices=conversations), newname
-
-
 def load_chat_history(fileobj):
     with open('conversation/'+fileobj+'.json', "r") as f:
         history = json.load(f)
@@ -235,9 +210,16 @@ def save_chathistory(filepath, system, context):
 
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
+    conversations = os.listdir('conversation')
+    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
+    return gr.Dropdown.update(choices=conversations)
 
 # 自定义功能
-
+def del_chat(filepath):
+    os.remove(f"conversation/{filepath}.json")
+    conversations = os.listdir('conversation')
+    conversations = [i[:-5] for i in conversations if i[-4:] == 'json']
+    return [], [], '新对话，点击这里改名', update_system(initial_prompt), initial_prompt,gr.Dropdown.update(choices=conversations)
 
 def delete_last_conversation(chatbot, system, context, filepath):
     if len(context) == 0:
@@ -359,6 +341,7 @@ with gr.Blocks(title='聊天机器人', css='''
     color: black !important;
     border-radius:5px !important;
     position: relative !important;
+    font-family:"思源黑体" !important;
     }
 .user::before {
     position: absolute;
@@ -422,6 +405,8 @@ with gr.Blocks(title='聊天机器人', css='''
                 clearBtn = gr.Button("清空对话")
             with gr.Column(scale=1, min_width=68):
                 saveBtn = gr.Button("保存对话")
+            with gr.Column(scale=1, min_width=68):
+                delConvBtn = gr.Button("删除对话")
             with gr.Column(scale=1, min_width=68):
                 delLastBtn = gr.Button("撤回信息")
             with gr.Column(scale=1, min_width=68):
@@ -508,11 +493,12 @@ with gr.Blocks(title='聊天机器人', css='''
     clearBtn.click(clear_state, [saveFileName, systemPrompt], outputs=[
                    chatbot, context])
     saveBtn.click(save_chathistory, [
-                  saveFileName, systemPrompt, context],  show_progress=True)
+                  saveFileName, systemPrompt, context],[conversationSelect],  show_progress=True)
     delLastBtn.click(delete_last_conversation, [
                      chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
     delFirstBtn.click(delete_first_conversation, [
                       chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
+    delConvBtn.click(del_chat,[saveFileName], outputs=[chatbot, context, saveFileName, systemPrompt, systemPromptDisplay,conversationSelect], show_progress=True)
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [
                          chatbot, context, usage], show_progress=True)
     translateBtn.click(translate_eng, [chatbot, systemPrompt, context, myKey, saveFileName], [
