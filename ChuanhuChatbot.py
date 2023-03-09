@@ -392,7 +392,7 @@ with gr.Blocks(title='聊天机器人', css='''
     width: 35px;
     height: 35px;
     border-radius:3px !important;
-    background-image:url("https://avatars.githubusercontent.com/u/53589767?s=96&v=4");
+    background-image:url("https://raw.githubusercontent.com/ni1o1/ChuanhuChatGPT/main/image/avatar2.png");
     background-repeat: round;
 }
 
