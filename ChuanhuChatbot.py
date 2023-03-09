@@ -341,7 +341,7 @@ with gr.Blocks(title='聊天机器人', css='''
     color: black !important;
     border-radius:5px !important;
     position: relative !important;
-    font-family:"思源黑体" !important;
+    line-height:20px !important;
     }
 .user::before {
     position: absolute;
