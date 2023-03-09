@@ -115,6 +115,10 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
         chatbot.append((input_sentence, "请求过于频繁，请5s后再试。"))
         context = context[:-1]
         return chatbot, context
+    except openai.error.RateLimitError:
+        chatbot.append((input_sentence, "太多人在用，服务器繁忙"))
+        context = context[:-1]
+        return chatbot, context
     except Exception as e:
         chatbot.append((input_sentence, "错误信息："+str(e)+"已将上一条信息删除，避免再次出错"))
         context = context[:-1]
@@ -239,6 +243,13 @@ def delete_last_conversation(chatbot, system, context, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context
 
+def delete_first_conversation(chatbot, system, context, filepath):
+    if len(context) == 0:
+        return [], []
+    chatbot = chatbot[1:]
+    context = context[2:]
+    save_chathistory(filepath, system, context)
+    return chatbot, context
 
 def reduce_token(chatbot, system, context, myKey, filepath):
     text = "请把上面的聊天内容总结一下"
@@ -310,11 +321,21 @@ def prase(chatbot, system, context, myKey, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
 
+def resend(chatbot, system, context, myKey, filepath):
+    text = context[-2]['content']
+    context = context[:-2]
+    chatbot = chatbot[:-1]
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
+
 title = """<h3 align="center">川虎ChatGPT 🚀 小旭学长改版</h3>"""
 
 with gr.Blocks(title='聊天机器人', css='''
 .message-wrap 
-{height: 60vh;}
+{height: 500px;}
 ''') as demo:
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
@@ -341,31 +362,48 @@ with gr.Blocks(title='聊天机器人', css='''
     with gr.Box():
         with gr.Row():
             saveFileName = gr.Textbox(label='对话名称',show_label=False, placeholder=f"在这里输入保存的文件名...", value=latestfile_var).style(container=False)
+
         gr.Markdown('# ')
         with gr.Row():
             with gr.Column(scale=1, min_width=68):
-                emptyBtn = gr.Button("新建")
-                clearBtn = gr.Button("清空")
-                delLastBtn = gr.Button("撤回")
-                reduceTokenBtn = gr.Button("总结")
-                translateBtn = gr.Button("翻英")
-                translateChBtn = gr.Button("翻中")
-                brainstornBtn = gr.Button("联想")
-                shorterBtn = gr.Button("缩短")
-                longerBtn = gr.Button("扩展")
-                scholarBtn = gr.Button("专业")
-                pointsBtn = gr.Button("分点")
-                praseBtn = gr.Button("鼓励")
-            with gr.Column(scale=12):
-                chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
-                with gr.Row():
-                    with gr.Column(scale=12):
-                        txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
-                            container=False)
-                    with gr.Column(min_width=20, scale=1):
-                        submitBtn = gr.Button("↑", variant="primary")
-                usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
+                emptyBtn = gr.Button("新建对话")
+            with gr.Column(scale=1, min_width=68):
+                clearBtn = gr.Button("清空对话")
+            with gr.Column(scale=1, min_width=68):
+                delLastBtn = gr.Button("撤回信息")
+            with gr.Column(scale=1, min_width=68):
+                delFirstBtn = gr.Button("删第一条")
+        gr.Markdown('# ')
+        with gr.Column(scale=12):
+            chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
+            with gr.Row():
+                with gr.Column(scale=12):
+                    txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
+                        container=False)
+                with gr.Column(min_width=20, scale=1):
+                    submitBtn = gr.Button("↑", variant="primary")
+            usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
 
+        gr.Markdown('# ')
+        with gr.Row():
+            with gr.Column(scale=1, min_width=68):
+                resendBtn = gr.Button("重发")
+            with gr.Column(scale=1, min_width=68):
+                reduceTokenBtn = gr.Button("总结")
+            with gr.Column(scale=1, min_width=68):
+                translateBtn = gr.Button("翻英")
+            with gr.Column(scale=1, min_width=68):
+                brainstornBtn = gr.Button("联想")
+            with gr.Column(scale=1, min_width=68):
+                shorterBtn = gr.Button("缩短")
+            with gr.Column(scale=1, min_width=68):
+                longerBtn = gr.Button("扩展")
+            with gr.Column(scale=1, min_width=68):
+                scholarBtn = gr.Button("专业")
+            with gr.Column(scale=1, min_width=68):
+                pointsBtn = gr.Button("分点")
+            with gr.Column(scale=1, min_width=68):
+                praseBtn = gr.Button("鼓励")
     with gr.Box():
         gr.Markdown('聊天设定')
         with gr.Row(variant='panel').style(container=True):
@@ -417,14 +455,11 @@ with gr.Blocks(title='聊天机器人', css='''
     clearBtn.click(clear_state, [saveFileName, systemPrompt], outputs=[
                    chatbot, context])
 
-    delLastBtn.click(delete_last_conversation, [chatbot, systemPrompt, context, saveFileName], [
-                     chatbot, context], show_progress=True)
-    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [
-                         chatbot, context, usage], show_progress=True)
-    translateBtn.click(translate_eng, [chatbot, systemPrompt, context, myKey, saveFileName], [
-                       chatbot, context, usage], show_progress=True)
-    translateChBtn.click(translate_ch, [chatbot, systemPrompt, context, myKey, saveFileName], [
-                         chatbot, context, usage], show_progress=True)
+    delLastBtn.click(delete_last_conversation, [chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
+    delFirstBtn.click(delete_first_conversation, [chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
+    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [chatbot, context, usage], show_progress=True)
+    translateBtn.click(translate_eng, [chatbot, systemPrompt, context, myKey, saveFileName], [chatbot, context, usage], show_progress=True)
+
     brainstornBtn.click(brainstorn, [chatbot, systemPrompt, context, myKey, saveFileName], [
                         chatbot, context, usage], show_progress=True)
     shorterBtn.click(shorter, [chatbot, systemPrompt, context, myKey, saveFileName], [
@@ -432,6 +467,8 @@ with gr.Blocks(title='聊天机器人', css='''
     longerBtn.click(longer, [chatbot, systemPrompt, context, myKey, saveFileName], [
                     chatbot, context, usage], show_progress=True)
     scholarBtn.click(scholar, [chatbot, systemPrompt, context, myKey, saveFileName], [
+        chatbot, context, usage], show_progress=True)
+    resendBtn.click(resend, [chatbot, systemPrompt, context, myKey, saveFileName], [
         chatbot, context, usage], show_progress=True)
     pointsBtn.click(points, [chatbot, systemPrompt, context, myKey, saveFileName], [
                     chatbot, context, usage], show_progress=True)
@@ -450,4 +487,4 @@ with gr.Blocks(title='聊天机器人', css='''
 
     #saveFileName.change(save_chat_history2, [saveFileName,latestfile, systemPrompt, context],[conversationSelect,latestfile],  show_progress=True)
 
-demo.launch(share=False)
+demo.launch(share=True)
