@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*-
+from configparser import ConfigParser
 import json
 import gradio as gr
 import openai
@@ -6,8 +7,15 @@ import os
 import datetime
 import sys
 import markdown
-from my_system_prompts import my_system_prompts
-from configparser import ConfigParser
+
+import csv
+my_system_prompts = {}
+with open('my_system_prompts.csv', newline='') as csvfile:
+    reader = csv.reader(csvfile)
+    header = next(reader)  # 跳过标题行，获取第二行开始的数据
+    for row in reader:
+        my_system_prompts[row[0]] = row[1]
+
 
 config_path = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), 'config.ini')
@@ -95,7 +103,7 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
-    
+
     try:
         message, message_with_stats, statistics = get_response(
             system, context, myKey)
@@ -113,10 +121,6 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
         return chatbot, context
     except openai.error.RateLimitError:
         chatbot.append((input_sentence, "请求过于频繁，请5s后再试。"))
-        context = context[:-1]
-        return chatbot, context
-    except openai.error.RateLimitError:
-        chatbot.append((input_sentence, "太多人在用，服务器繁忙"))
         context = context[:-1]
         return chatbot, context
     except Exception as e:
@@ -174,7 +178,7 @@ def get_history_names():
 
 
 def reset_state():
-    return [], [], '新对话，点击这里改名',update_system(initial_prompt),initial_prompt
+    return [], [], '新对话，点击这里改名', update_system(initial_prompt), initial_prompt
 
 
 def clear_state(filepath, system):
@@ -243,6 +247,7 @@ def delete_last_conversation(chatbot, system, context, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context
 
+
 def delete_first_conversation(chatbot, system, context, filepath):
     if len(context) == 0:
         return [], []
@@ -250,6 +255,7 @@ def delete_first_conversation(chatbot, system, context, filepath):
     context = context[2:]
     save_chathistory(filepath, system, context)
     return chatbot, context
+
 
 def reduce_token(chatbot, system, context, myKey, filepath):
     text = "请把上面的聊天内容总结一下"
@@ -276,7 +282,7 @@ def translate_ch(chatbot, system, context, myKey, filepath):
 
 
 def brainstorn(chatbot, system, context, myKey, filepath):
-    text = "头脑风暴一下，你还有什么建议呢？"
+    text = "请你联想一下，还有吗？"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
     save_chathistory(filepath, system, context)
@@ -314,12 +320,22 @@ def points(chatbot, system, context, myKey, filepath):
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
 
+
 def prase(chatbot, system, context, myKey, filepath):
     text = "请你结合上面的内容，夸一夸我，给我一些鼓励"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
     save_chathistory(filepath, system, context)
     return chatbot, context, statistics
+
+
+def explain(chatbot, system, context, myKey, filepath):
+    text = "你说得太复杂了，请用小朋友都能懂的方式详细解释一下"
+    chatbot, context, statistics = sendmessage(
+        text, system, context, chatbot, myKey)
+    save_chathistory(filepath, system, context)
+    return chatbot, context, statistics
+
 
 def resend(chatbot, system, context, myKey, filepath):
     text = context[-2]['content']
@@ -334,8 +350,42 @@ def resend(chatbot, system, context, myKey, filepath):
 title = """<h3 align="center">川虎ChatGPT 🚀 小旭学长改版</h3>"""
 
 with gr.Blocks(title='聊天机器人', css='''
-.message-wrap 
-{height: 500px;}
+.message-wrap {
+    height:60vh;
+    min-height: 500px
+}
+#chatbot .wrap {background-color:#f1f1f1}
+.message { 
+    color: black !important;
+    border-radius:5px !important;
+    position: relative !important;
+    }
+.user::before {
+    position: absolute;
+    top: 10px;
+    right: -10px;
+    content: '';
+    width: 0;
+    height: 0;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 5px solid #7beb67;
+    border-top: 5px solid transparent;
+}
+.bot::before {
+    position: absolute;
+    top: 10px;
+    left: -10px;
+    content: '';
+    width: 0;
+    height: 0;
+    border-right: 5px solid #FFF;
+    border-bottom: 5px solid transparent;
+    border-left: 5px solid transparent;
+    border-top: 5px solid transparent;
+}
+
+
 ''') as demo:
     context = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
@@ -361,7 +411,8 @@ with gr.Blocks(title='聊天机器人', css='''
 
     with gr.Box():
         with gr.Row():
-            saveFileName = gr.Textbox(label='对话名称',show_label=False, placeholder=f"在这里输入保存的文件名...", value=latestfile_var).style(container=False)
+            saveFileName = gr.Textbox(
+                label='对话名称', show_label=False, placeholder=f"在这里输入保存的文件名...", value=latestfile_var).style(container=False)
 
         gr.Markdown('# ')
         with gr.Row():
@@ -370,19 +421,23 @@ with gr.Blocks(title='聊天机器人', css='''
             with gr.Column(scale=1, min_width=68):
                 clearBtn = gr.Button("清空对话")
             with gr.Column(scale=1, min_width=68):
+                saveBtn = gr.Button("保存对话")
+            with gr.Column(scale=1, min_width=68):
                 delLastBtn = gr.Button("撤回信息")
             with gr.Column(scale=1, min_width=68):
                 delFirstBtn = gr.Button("删第一条")
         gr.Markdown('# ')
         with gr.Column(scale=12):
-            chatbot = gr.Chatbot().style(color_map=("#1D51EE", "#585A5B"))
+            chatbot = gr.Chatbot(show_label=False, elem_id='chatbot').style(
+                color_map=("#7beb67", "#FFF"))
             with gr.Row():
                 with gr.Column(scale=12):
                     txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
                         container=False)
                 with gr.Column(min_width=20, scale=1):
                     submitBtn = gr.Button("↑", variant="primary")
-            usage = gr.Label(show_label=False, value={'对话Token用量': 0}).style(container=False)
+            usage = gr.Label(show_label=False, value={
+                             '对话Token用量': 0}).style(container=False)
 
         gr.Markdown('# ')
         with gr.Row():
@@ -404,6 +459,9 @@ with gr.Blocks(title='聊天机器人', css='''
                 pointsBtn = gr.Button("分点")
             with gr.Column(scale=1, min_width=68):
                 praseBtn = gr.Button("鼓励")
+            with gr.Column(scale=1, min_width=68):
+                explainBtn = gr.Button("解释")
+
     with gr.Box():
         gr.Markdown('聊天设定')
         with gr.Row(variant='panel').style(container=True):
@@ -414,12 +472,6 @@ with gr.Blocks(title='聊天机器人', css='''
             show_label=True, placeholder=f"在这里输入新的聊天设定...", label="自定义聊天设定").style(container=True)
         systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt,
                                          interactive=False, label="目前的聊天设定", max_lines=3).style(container=True)
-
-    with gr.Box():
-        gr.Markdown('对话另存为')
-        with gr.Row():
-            with gr.Column(min_width=20, scale=1):
-                saveBtn = gr.Button("💾").style(container=True)
 
     if len(str(my_api_key)) == 51:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
@@ -450,16 +502,21 @@ with gr.Blocks(title='聊天机器人', css='''
     newSystemPrompt.submit(lambda x: x, newSystemPrompt, systemPromptDisplay)
     newSystemPrompt.submit(lambda: "", None, newSystemPrompt)
 
-    emptyBtn.click(reset_state, outputs=[chatbot, context, saveFileName,systemPrompt,systemPromptDisplay])
+    emptyBtn.click(reset_state, outputs=[
+                   chatbot, context, saveFileName, systemPrompt, systemPromptDisplay])
 
     clearBtn.click(clear_state, [saveFileName, systemPrompt], outputs=[
                    chatbot, context])
-
-    delLastBtn.click(delete_last_conversation, [chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
-    delFirstBtn.click(delete_first_conversation, [chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
-    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [chatbot, context, usage], show_progress=True)
-    translateBtn.click(translate_eng, [chatbot, systemPrompt, context, myKey, saveFileName], [chatbot, context, usage], show_progress=True)
-
+    saveBtn.click(save_chathistory, [
+                  saveFileName, systemPrompt, context],  show_progress=True)
+    delLastBtn.click(delete_last_conversation, [
+                     chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
+    delFirstBtn.click(delete_first_conversation, [
+                      chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
+    reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                         chatbot, context, usage], show_progress=True)
+    translateBtn.click(translate_eng, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                       chatbot, context, usage], show_progress=True)
     brainstornBtn.click(brainstorn, [chatbot, systemPrompt, context, myKey, saveFileName], [
                         chatbot, context, usage], show_progress=True)
     shorterBtn.click(shorter, [chatbot, systemPrompt, context, myKey, saveFileName], [
@@ -473,9 +530,9 @@ with gr.Blocks(title='聊天机器人', css='''
     pointsBtn.click(points, [chatbot, systemPrompt, context, myKey, saveFileName], [
                     chatbot, context, usage], show_progress=True)
     praseBtn.click(prase, [chatbot, systemPrompt, context, myKey, saveFileName], [
-                    chatbot, context, usage], show_progress=True)
-    saveBtn.click(save_chat_history, [saveFileName, systemPrompt, context], [
-                  conversationSelect], show_progress=True)
+                   chatbot, context, usage], show_progress=True)
+    explainBtn.click(explain, [chatbot, systemPrompt, context, myKey, saveFileName], [
+                     chatbot, context, usage], show_progress=True)
     readBtn.click(load_chat_history, conversationSelect, [
                   chatbot, systemPrompt, context, systemPromptDisplay, saveFileName], show_progress=True)
     replaceSystemPromptBtn.click(
@@ -484,7 +541,5 @@ with gr.Blocks(title='聊天机器人', css='''
         lambda x: my_system_prompts[x], selectSystemPrompt, systemPromptDisplay)
     keyTxt.submit(set_apikey, [keyTxt, myKey], [
                   keyTxt, myKey], show_progress=True)
-
-    #saveFileName.change(save_chat_history2, [saveFileName,latestfile, systemPrompt, context],[conversationSelect,latestfile],  show_progress=True)
 
 demo.launch(share=True)
