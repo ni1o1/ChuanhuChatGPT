@@ -66,8 +66,8 @@ def postprocess( self, y ) :
                 None if response is None else mdtex2html.convert(response),
             )
         return y
-
-gr.Chatbot.postprocess = postprocess
+#开启latex
+#gr.Chatbot.postprocess = postprocess
 
 def set_apikey(new_api_key, myKey):
     try:
