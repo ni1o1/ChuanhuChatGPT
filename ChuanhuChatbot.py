@@ -191,7 +191,7 @@ def conclude_context(systemPrompt,context,myKey):
 def predict(chatbot, input_sentence, system, context, filepath, myKey):
     #如果太长，则缩短
     total_token = count_all_token(system,context)
-    if total_token>4096*2/3:
+    if total_token>3600:
         context = conclude_context(system,context,myKey)
         print('缩短成功，开始继续对话',total_token,count_all_token(system,context))
     #开始predict
