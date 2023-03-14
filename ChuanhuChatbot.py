@@ -9,7 +9,7 @@ import sys
 from mycss import mycss
 import csv
 import mdtex2html
-
+import tiktoken
 my_system_prompts = {}
 with open('my_system_prompts.csv', newline='') as csvfile:
     reader = csv.reader(csvfile)
@@ -127,26 +127,84 @@ def get_response(system, context, myKey, raw=False):
     openai.api_key = myKey
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[system, *context],
+        messages=[system, *context]
     )
+    
     if raw:
         return response
     else:
         statistics = int(response["usage"]["total_tokens"])/4096
         message = response["choices"][0]["message"]["content"]
-
+        
         return message, parse_text(message), {'对话Token用量': min(statistics, 1)}
 
+## 缩短对话
+def num_tokens_from_string(string, encoding_name):
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
+def count_all_token(systemPrompt,context):
+    #计算当前对话的token
+    s = systemPrompt['content']
+    for i in context:
+        s+=i['content']
+    total_token = num_tokens_from_string(s, "cl100k_base")
+    return total_token
+
+def conclude_context(systemPrompt,context,myKey):
+    print('缩短对话中')
+    #计算当前对话的token
+    total_token = count_all_token(systemPrompt,context)
+
+    #设定的token
+    systemPrompt_token = num_tokens_from_string(systemPrompt['content'], "cl100k_base")
+    t = systemPrompt_token
+
+    #要总结的context
+    old_context = []
+    new_context = []
+    for i in range(int(len(context)/2)):
+        user_word = context[i*2]['content']
+        assistant_word = context[i*2+1]['content']
+        num_token = num_tokens_from_string(user_word+assistant_word, "cl100k_base")
+        t += num_token
+        if t<(total_token-systemPrompt_token)/2+systemPrompt_token:
+            old_context.append(context[i*2])
+            old_context.append(context[i*2+1])
+        else:
+            new_context.append(context[i*2])
+            new_context.append(context[i*2+1])
+
+    #进行总结
+    text='总结以上对话，100字内'
+    old_context.append(
+            {"role": "user", "content": text})
+    message, _, statistics = get_response(systemPrompt, old_context, myKey, raw=False)
+
+    #新context
+    new_context = [ {"role": "user", "content": "前面对话是什么内容"},
+                {"role": "assistant", "content": message}]+new_context
+
+    return new_context
 
 def predict(chatbot, input_sentence, system, context, filepath, myKey):
+    #如果太长，则缩短
+    total_token = count_all_token(system,context)
+    if total_token>4096*2/3:
+        context = conclude_context(system,context,myKey)
+        print('缩短成功，开始继续对话',total_token,count_all_token(system,context))
+    #开始predict
     if len(input_sentence) == 0:
         return []
     context.append({"role": "user", "content": f"{input_sentence}"})
 
+    
     try:
+        
         message, message_with_stats, statistics = get_response(
             system, context, myKey)
+        
     except openai.error.AuthenticationError:
         chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
         context = context[:-1]
@@ -172,7 +230,7 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
 
     chatbot.append((input_sentence, message_with_stats))
     # 保存
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -181,11 +239,15 @@ def load_chat_history(fileobj):
     with open('conversation/'+fileobj+'.json', "r") as f:
         history = json.load(f)
     context = history["context"]
-    chathistory = []
-    for i in range(0, len(context), 2):
-        chathistory.append(
-            (parse_text(context[i]["content"]), parse_text(context[i+1]["content"])))
-    return chathistory, history["system"], context, history["system"]["content"], fileobj
+    try:
+        chatbot = history['chatbot']
+    except:
+        chatbot = []
+        for i in range(0, len(context), 2):
+            chatbot.append(
+                (parse_text(context[i]["content"]), parse_text(context[i+1]["content"])))
+
+    return chatbot, history["system"], context, history["system"]["content"], fileobj
 
 
 def get_history_names():
@@ -199,7 +261,7 @@ def reset_state():
 
 
 def clear_state(filepath, system):
-    save_chathistory(filepath, system, [])
+    save_chathistory(filepath, system, [],[])
     return [], []
 
 
@@ -244,11 +306,11 @@ def sendmessage(text, system, context, chatbot, myKey):
     return chatbot, context, statistics
 
 
-def save_chathistory(filepath, system, context):
+def save_chathistory(filepath, system, context,chatbot):
     # 保存
     if filepath == "":
         return
-    history = {"system": system, "context": context}
+    history = {"system": system, "context": context,"chatbot":chatbot}
 
     with open(f"conversation/{filepath}.json", "w") as f:
         json.dump(history, f)
@@ -271,7 +333,7 @@ def delete_last_conversation(chatbot, system, context, filepath):
         return [], []
     chatbot = chatbot[:-1]
     context = context[:-2]
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context
 
 
@@ -280,7 +342,7 @@ def delete_first_conversation(chatbot, system, context, filepath):
         return [], []
     chatbot = chatbot[1:]
     context = context[2:]
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context
 
 
@@ -288,7 +350,7 @@ def reduce_token(chatbot, system, context, myKey, filepath):
     text = "请把上面的聊天内容总结一下"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -296,7 +358,7 @@ def translate_eng(chatbot, system, context, myKey, filepath):
     text = "请把你的回答翻译成英语"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -304,7 +366,7 @@ def translate_ch(chatbot, system, context, myKey, filepath):
     text = "请把你的回答翻译成中文"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -312,7 +374,7 @@ def brainstorn(chatbot, system, context, myKey, filepath):
     text = "请你联想一下，还有吗？"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -320,7 +382,7 @@ def shorter(chatbot, system, context, myKey, filepath):
     text = "把你上面的回答精简一下"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -328,7 +390,7 @@ def longer(chatbot, system, context, myKey, filepath):
     text = "把你上面的回答扩展一下"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -336,7 +398,7 @@ def scholar(chatbot, system, context, myKey, filepath):
     text = "把你上面的回答换为更加正式、专业、学术的语气"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -344,7 +406,7 @@ def points(chatbot, system, context, myKey, filepath):
     text = "把你上面的回答分点阐述"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -352,7 +414,7 @@ def prase(chatbot, system, context, myKey, filepath):
     text = "请你结合上面的内容，夸一夸我，给我一些鼓励"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -360,7 +422,7 @@ def explain(chatbot, system, context, myKey, filepath):
     text = "你说得太复杂了，请用小朋友都能懂的方式详细解释一下"
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -370,7 +432,7 @@ def resend(chatbot, system, context, myKey, filepath):
     chatbot = chatbot[:-1]
     chatbot, context, statistics = sendmessage(
         text, system, context, chatbot, myKey)
-    save_chathistory(filepath, system, context)
+    save_chathistory(filepath, system, context,chatbot)
     return chatbot, context, statistics
 
 
@@ -498,7 +560,7 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
     clearBtn.click(clear_state, [saveFileName, systemPrompt], outputs=[
                    chatbot, context])
     saveBtn.click(save_chathistory, [
-                  saveFileName, systemPrompt, context], [conversationSelect],  show_progress=True)
+                  saveFileName, systemPrompt, context,chatbot], [conversationSelect],  show_progress=True)
     delLastBtn.click(delete_last_conversation, [
                      chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
     delFirstBtn.click(delete_first_conversation, [
