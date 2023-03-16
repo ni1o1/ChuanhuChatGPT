@@ -122,11 +122,14 @@ def parse_text(text):
     return text
 
 
-def get_response(system, context, myKey, raw=False):
+def get_response(system, context, myKey,temperature=1,presence_penalty=0,frequency_penalty=0, raw=False):
     openai.api_key = myKey
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[system, *context]
+        messages=[system, *context],
+        temperature=temperature,
+        presence_penalty=presence_penalty,
+        frequency_penalty=frequency_penalty
     )
 
     if raw:
@@ -158,7 +161,7 @@ def count_all_token(systemPrompt, context):
 def conclude_context(systemPrompt, context, myKey):
     # 计算当前对话的token
     total_token = count_all_token(systemPrompt, context)
-    if total_token > 3600:
+    if total_token > 3000:
         print('缩短对话中')
 
         # 设定的token
@@ -175,7 +178,7 @@ def conclude_context(systemPrompt, context, myKey):
             num_token = num_tokens_from_string(
                 user_word+assistant_word, "cl100k_base")
             t += num_token
-            if t < (total_token-systemPrompt_token)*3/4+systemPrompt_token:
+            if t < (total_token-systemPrompt_token)*1/2+systemPrompt_token:
                 old_context.append(context[i*2])
                 old_context.append(context[i*2+1])
             else:
@@ -198,7 +201,7 @@ def conclude_context(systemPrompt, context, myKey):
         return context
 
 
-def predict(chatbot, input_sentence, system, context, filepath, myKey):
+def predict(chatbot, input_sentence, system, context, filepath, myKey,temperature,presence_penalty,frequency_penalty):
     # 如果太长，则缩短
     context = conclude_context(system, context, myKey)
 
@@ -208,7 +211,7 @@ def predict(chatbot, input_sentence, system, context, filepath, myKey):
 
     try:
         message, message_with_stats, statistics = get_response(
-            system, context, myKey)
+            system, context, myKey,temperature,presence_penalty,frequency_penalty)
     except openai.error.AuthenticationError:
         chatbot.append((input_sentence, "请求失败，请检查API-key是否正确。"))
         context = context[:-1]
@@ -331,21 +334,14 @@ def del_chat(filepath):
 
 
 def delete_last_conversation(chatbot, system, context, filepath):
-    if len(context) == 0:
-        return [], []
-    chatbot = chatbot[:-1]
-    context = context[:-2]
-    save_chathistory(filepath, system, context, chatbot)
-    return chatbot, context
+    if len(context) <= 2:
+        return chatbot, context
+    else:
+        chatbot = chatbot[:-1]
+        context = context[:-2]
+        save_chathistory(filepath, system, context, chatbot)
+        return chatbot, context
 
-
-def delete_first_conversation(chatbot, system, context, filepath):
-    if len(context) == 0:
-        return [], []
-    chatbot = chatbot[1:]
-    context = context[2:]
-    save_chathistory(filepath, system, context, chatbot)
-    return chatbot, context
 
 
 def reduce_token(chatbot, system, context, myKey, filepath):
@@ -480,8 +476,6 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
                 delConvBtn = gr.Button("删除对话")
             with gr.Column(scale=1, min_width=68):
                 delLastBtn = gr.Button("撤回信息")
-            with gr.Column(scale=1, min_width=68):
-                delFirstBtn = gr.Button("删第一条")
         gr.Markdown('# ')
         with gr.Column(scale=12):
             chatbot = gr.Chatbot(show_label=False, elem_id='chatbot').style(
@@ -528,7 +522,9 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
             show_label=True, placeholder=f"在这里输入新的聊天设定...", label="自定义聊天设定").style(container=True)
         systemPromptDisplay = gr.Textbox(show_label=True, value=initial_prompt,
                                          interactive=False, label="目前的聊天设定", max_lines=3).style(container=True)
-
+        temperature = gr.Slider(0,1.6, value=1, label="temperature（喝了多少假酒）", interactive=True)
+        presence_penalty = gr.Slider(-1.5, 1.5, value=0, label="presence_penalty（新的话题可能性）", interactive=True)
+        frequency_penalty = gr.Slider(-1.5, 1.5, value=0, label="frequency_penalty（避免重复的可能性）", interactive=True)
     if len(str(my_api_key)) == 51:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
                             placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
@@ -547,10 +543,10 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
               conversationSelect, chatbot, systemPrompt, context, systemPromptDisplay, latestfile])
     demo.load(load_chat_history, latestfile, [
               chatbot, systemPrompt, context, systemPromptDisplay, latestfile], show_progress=True)
-    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName, myKey], [
+    txt.submit(predict, [chatbot, txt, systemPrompt, context, saveFileName, myKey,temperature,presence_penalty,frequency_penalty], [
                chatbot, context, usage], show_progress=True)
     txt.submit(lambda: "", None, txt)
-    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName, myKey], [
+    submitBtn.click(predict, [chatbot, txt, systemPrompt, context, saveFileName, myKey,temperature,presence_penalty,frequency_penalty], [
                     chatbot, context, usage], show_progress=True)
     submitBtn.click(lambda: "", None, txt)
     chatbot.change(conclude_context, [systemPrompt, context, myKey],context)
@@ -568,8 +564,6 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
                   saveFileName, systemPrompt, context, chatbot], [conversationSelect],  show_progress=True)
     delLastBtn.click(delete_last_conversation, [
                      chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
-    delFirstBtn.click(delete_first_conversation, [
-                      chatbot, systemPrompt, context, saveFileName], [chatbot, context], show_progress=True)
     delConvBtn.click(del_chat, [saveFileName], outputs=[chatbot, context, saveFileName,
                      systemPrompt, systemPromptDisplay, conversationSelect], show_progress=True)
     reduceTokenBtn.click(reduce_token, [chatbot, systemPrompt, context, myKey, saveFileName], [
