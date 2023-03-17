@@ -11,7 +11,7 @@ import csv
 import tiktoken
 from readpdf import *
 my_system_prompts = {}
-with open('my_system_prompts.csv', newline='') as csvfile:
+with open('my_system_prompts.csv', newline='',encoding='utf-8') as csvfile:
     reader = csv.reader(csvfile)
     header = next(reader)  # 跳过标题行，获取第二行开始的数据
     for row in reader:
@@ -447,9 +447,9 @@ def mindgraph(chatbot,  df_embedding_json, myKey):
     if df_embedding_json==[]:
         pass
     else:
-        txt = '用中文对这篇文章做一个详细的思维导图，必须包含多个层级，给出详细结论，不包含参考文献，必须用markdown，在新窗口生成代码，请不要用mermaid'
+        txt = '对这篇文章做一个详细的思维导图，尽可能包含多个层级，给出详细结论，不包含参考文献，必须用markdown，在新窗口生成代码，请不要用mermaid，必须用中文'
         df = pd.DataFrame(df_embedding_json)
-        message = answer_question(df,myKey, question=txt, max_len=3500,debug=False)
+        message = answer_question(df,myKey, question=txt, max_len=3200,debug=False)
         chatbot.append((txt, '打开<a href="https://markmap.js.org/repl" target="_blank" color="" style="text-decoration:underline;color:blue">这个页面</a>，粘贴下面内容<br/><pre><code>'+message.replace('\n','<br/>').replace(" ", "&nbsp;")+'</code></pre>'))
         return chatbot, '回答完成'
 

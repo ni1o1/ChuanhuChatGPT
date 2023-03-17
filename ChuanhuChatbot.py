@@ -11,7 +11,7 @@ import csv
 import mdtex2html
 import tiktoken
 my_system_prompts = {}
-with open('my_system_prompts.csv', newline='') as csvfile:
+with open('my_system_prompts.csv', newline='',encoding='utf-8') as csvfile:
     reader = csv.reader(csvfile)
     header = next(reader)  # 跳过标题行，获取第二行开始的数据
     for row in reader:
