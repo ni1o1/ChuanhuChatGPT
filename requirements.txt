@@ -2,3 +2,9 @@ openai>=0.27.0
 gradio==3.19.1
 configparser
 mdtex2html
+tiktoken
+pandas
+plotly
+scipy
+scikit-learn
+pdfplumber

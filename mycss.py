@@ -73,7 +73,7 @@ code {
 }
 pre code {
     display: block;
-    white-space: pre;
+    white-space: break-spaces;
     background-color: hsla(0, 0%, 0%, 72%);
     border: solid 5px var(--color-border-primary) !important;
     border-radius: 10px;
