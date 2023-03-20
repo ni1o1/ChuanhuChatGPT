@@ -8,6 +8,19 @@ import tiktoken
 # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+)  # for exponential backoff
+
+@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+def chatcompletion_with_backoff(**kwargs):
+    return openai.ChatCompletion.create(**kwargs)
+
+@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+def embedding_with_backoff(**kwargs):
+    return openai.Embedding.create(**kwargs)
 
 def read_pdf(filename):
     chars = []
@@ -19,7 +32,11 @@ def read_pdf(filename):
             char['page'] = t
             chars.append(char)
     chars = pd.concat(chars)
-    return pd.DataFrame([chars['text'].sum()], columns=['text'])
+    
+    chars['group'] = (chars['size'].shift()!=chars['size']).cumsum()
+    chars = chars.groupby(['group'])['text'].sum().reset_index()[['text']]
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    return chars
 
 # Function to split the text into chunks of a maximum number of tokens
 
@@ -60,40 +77,57 @@ def split_into_many(text, max_tokens=500):
     return chunks
 
 
-def shortened_text(df, max_tokens=500):
-    shortened = []
 
-    # Loop through the dataframe
-    for row in df.iterrows():
-
-        # If the text is None, go to the next row
-        if row[1]['text'] is None:
-            continue
-
-        # If the number of tokens is greater than the max number of tokens, split the text into chunks
-        if row[1]['n_tokens'] > max_tokens:
-            shortened += split_into_many(row[1]['text'], max_tokens=max_tokens)
-
-        # Otherwise, add the text to the list of shortened texts
+def shortened_text(df,max_tokens=500):
+    #切分长句子
+    texts = []
+    for i in range(len(df)):
+        r = df.iloc[i]
+        n_tokens = r['n_tokens']
+        text = r['text']
+        if n_tokens>max_tokens:
+            longtext = pd.DataFrame(list(text))
+            longtext['group'] = ((longtext[0]=='.')|(longtext[0]=='。')|(longtext[0]==' ')).shift().cumsum().fillna(0)
+            longtext = longtext.groupby('group')[0].sum()
+            texts+= list(longtext)
         else:
-            shortened.append(row[1]['text'])
+            texts.append(text)
+    texts = pd.DataFrame(texts,columns = ['text'])
+    texts['n_tokens'] = texts.text.apply(lambda x: len(tokenizer.encode(x)))
 
-    df = pd.DataFrame(shortened, columns=['text'])
-    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
-    return df
+    #拼起来
+    token_count = 0
+    splited_texts = []
+    thistext = []
+    for i in range(len(texts)):
+        r = texts.iloc[i]
+        n_tokens = r['n_tokens']
+        text = r['text']
+        if token_count+n_tokens<max_tokens:
+            thistext.append(text)
+            token_count += n_tokens
+        else:
+            splited_texts.append(''.join(thistext).replace('  ',' '))
+            thistext = [text]
+            token_count = n_tokens
+    splited_texts.append(''.join(thistext).replace('  ',' '))
+    splited_texts = pd.DataFrame(splited_texts,columns=['text'])
+
+    splited_texts['n_tokens'] = splited_texts.text.apply(lambda x: len(tokenizer.encode(x)))
+    return splited_texts
 
 
 def embedding_df(df, api_key):
     openai.api_key = api_key
 
-    df['embeddings'] = df.text.apply(lambda x: openai.Embedding.create(
+    df['embeddings'] = df.text.apply(lambda x: embedding_with_backoff(
         input=x, engine='text-embedding-ada-002')['data'][0]['embedding'])
     df['embeddings'] = df['embeddings'].apply(np.array)
     return df
 
 
 def create_context(
-    question, df,     api_key, max_len=1800, size="ada"
+    question, df, api_key, max_len=1800, size="ada"
 ):
     """
     Create a context for a question by finding the most similar context from the dataframe
@@ -101,7 +135,7 @@ def create_context(
     openai.api_key = api_key
 
     # Get the embeddings for the question
-    q_embeddings = openai.Embedding.create(
+    q_embeddings = embedding_with_backoff(
         input=question, engine='text-embedding-ada-002')['data'][0]['embedding']
 
     # Get the distances from the embeddings
@@ -155,7 +189,7 @@ def answer_question(
 
     try:
         # Create a completions using the question and context
-        response = openai.ChatCompletion.create(
+        response = chatcompletion_with_backoff(
             messages=[{'role': "system", "content": '根据以下文章内容，用中文回答问题，文章如下：'+context},
                       {"role": "user", "content": question}],
             temperature=0,
@@ -168,3 +202,23 @@ def answer_question(
     except Exception as e:
         print(e)
         return ""
+
+def get_mind_graph(message):
+    '''
+    整理思维导图的信息
+    '''
+    mind_graph = pd.DataFrame(message.split('\n'))
+    mind_graph = mind_graph[mind_graph[0]!='']
+    texts = []
+    for i in range(len(mind_graph)):
+        text = mind_graph[0].iloc[i]
+
+        if re.split('[. ]',text)[0]!='':
+            if re.split('[. ]',text)[0][0] in '0123456789':
+                text = '- '+'.'.join(text.split('.')[1:])
+            else:
+                if re.split('[. ]',text)[0][0] not in '#-':
+                    text = '-'+text
+        texts.append(text.replace('-  ','- '))
+    mind_graph = '\n'.join(texts)
+    return mind_graph

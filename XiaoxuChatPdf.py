@@ -450,7 +450,7 @@ def mindgraph(chatbot,  df_embedding_json, myKey):
         txt = '对这篇文章做一个详细的思维导图，尽可能包含多个层级，给出详细结论，不包含参考文献，必须用markdown，在新窗口生成代码，请不要用mermaid，必须用中文'
         df = pd.DataFrame(df_embedding_json)
         message = answer_question(df,myKey, question=txt, max_len=3200,debug=False)
-        chatbot.append((txt, '打开<a href="https://markmap.js.org/repl" target="_blank" color="" style="text-decoration:underline;color:blue">这个页面</a>，粘贴下面内容<br/><pre><code>'+message.replace('\n','<br/>').replace(" ", "&nbsp;")+'</code></pre>'))
+        chatbot.append((txt, '打开<a href="https://markmap.js.org/repl" target="_blank" color="" style="text-decoration:underline;color:blue">这个页面</a>，粘贴下面内容<br/><pre><code>'+get_mind_graph(message).replace('\n','<br/>').replace(" ", "&nbsp;")+'</code></pre>'))
         return chatbot, '回答完成'
 
 title = """<h3 align="center">ChatPDF By 小旭学长</h3>"""
@@ -496,7 +496,6 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
     if len(str(my_api_key)) == 51:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
                             placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
-
 
     txt.submit(predict_pdf, [chatbot, txt, df_embedding_json, myKey], [chatbot,file_read_label], show_progress=True)
     txt.submit(lambda: "", None, txt)
