@@ -5,6 +5,12 @@ from openai.embeddings_utils import distances_from_embeddings
 import pdfplumber
 import pandas as pd
 import tiktoken
+#导入解析包
+from bs4 import BeautifulSoup
+import requests
+from urllib.parse import quote
+import docx
+
 # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
@@ -22,6 +28,21 @@ def chatcompletion_with_backoff(**kwargs):
 def embedding_with_backoff(**kwargs):
     return openai.Embedding.create(**kwargs)
 
+def read_url(url):
+    headers = {"user-agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36"
+                                        "(KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+                            }
+    response = requests.get(url,'lxml', headers=headers)
+    response.encoding = response.apparent_encoding
+    response.raise_for_status()
+    content = response.content
+    #创建beautifulsoup解析对象
+    bs_1=BeautifulSoup(content,'lxml')
+    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in bs_1.text.split('\n') if (i != '')&(re.sub('\s+', ' ', i)!=' ')],columns=['text'])
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    url_title = bs_1.find('title').text
+    return chars,url_title
+
 def read_pdf(filename):
     chars = []
     t = 0
@@ -38,11 +59,46 @@ def read_pdf(filename):
     chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
     return chars
 
-# Function to split the text into chunks of a maximum number of tokens
+
+def read_docx(filename):
+    # 打开Word文档
+    document = docx.Document(filename)
+    paras = []
+    # 输出文档段落（段落中的内容）
+    for para in document.paragraphs:
+        paras.append(para.text)
+    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in paras if (i != '')&(re.sub('\s+', ' ', i)!=' ')],columns=['text'])
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    return chars
+
+def read_txt(filename):
+    f = open(filename)
+    paras = f.readlines()
+    f.close()
+    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in paras if (i != '')&(re.sub('\s+', ' ', i)!=' ')],columns=['text'])
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    return chars
+
+def read_question(question):
+    headers = {
+"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
+    }
+    url = 'http://cn.bing.com/search?q='+quote(question)
+    response = requests.get(url, 'lxml', headers=headers)
+    response.encoding = response.apparent_encoding
+    response.raise_for_status()
+    content = response.content
+    # 创建beautifulsoup解析对象
+    bs_1 = BeautifulSoup(content, 'lxml')
+    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in bs_1.text.split('\n')
+                         if (i != '') & (re.sub('\s+', ' ', i) != ' ')], columns=['text'])
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    url_title = bs_1.find('title').text
+    return chars, url_title
 
 
 def split_into_many(text, max_tokens=500):
-
+    # Function to split the text into chunks of a maximum number of tokens
     # Split the text into sentences
     sentences = re.split("[.。 ]", text)
 
@@ -218,7 +274,7 @@ def get_mind_graph(message):
                 text = '- '+'.'.join(text.split('.')[1:])
             else:
                 if re.split('[. ]',text)[0][0] not in '#-':
-                    text = '-'+text
-        texts.append(text.replace('-  ','- '))
+                    text = '- '+text
+        texts.append(text.replace('-  ','- ').replace('<code>','').replace('</code>',''))
     mind_graph = '\n'.join(texts)
     return mind_graph

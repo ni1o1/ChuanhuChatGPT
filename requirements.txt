@@ -8,3 +8,7 @@ plotly
 scipy
 scikit-learn
 pdfplumber
+tenacity
+docx
+requests
+bs4

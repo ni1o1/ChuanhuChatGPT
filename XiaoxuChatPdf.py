@@ -9,9 +9,10 @@ import sys
 from mycss import mycss
 import csv
 import tiktoken
+
 from readpdf import *
 my_system_prompts = {}
-with open('my_system_prompts.csv', newline='',encoding='utf-8') as csvfile:
+with open('my_system_prompts.csv', newline='', encoding='utf-8') as csvfile:
     reader = csv.reader(csvfile)
     header = next(reader)  # 跳过标题行，获取第二行开始的数据
     for row in reader:
@@ -104,7 +105,6 @@ def parse_text(line):
     line = line.replace(")", "&#41;")
     line = line.replace("$", "&#36;")
     return line
-
 
 
 def get_response(system, context, myKey, temperature=1, presence_penalty=0, frequency_penalty=0, raw=False):
@@ -423,7 +423,14 @@ def load_pdf(file_obj, myKey):
     '''
     PDF embedding
     '''
-    df = read_pdf(file_obj.name)
+    filetype = file_obj.name.split('.')[-1]
+    if filetype =='pdf':
+        df = read_pdf(file_obj.name)
+    elif (filetype =='docx')|(filetype =='doc'):
+        df = read_docx(file_obj.name)
+    elif (filetype =='txt')|(filetype =='md'):
+        df = read_txt(file_obj.name)
+
     # Tokenize the text and save the number of tokens to a new column
     df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
     df = shortened_text(df, max_tokens=800)
@@ -432,28 +439,60 @@ def load_pdf(file_obj, myKey):
     df_embedding_json = json.loads(df.to_json())
     return df_embedding_json, '读取完成'
 
+def load_url(url, myKey):
+    '''
+    PDF embedding
+    '''
+    df,url_title = read_url(url)
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成:'+url_title
+
+def load_question(question, myKey):
+    '''
+    PDF embedding
+    '''
+    df,url_title = read_question(question)
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成:'+url_title
 
 def predict_pdf(chatbot, txt, df_embedding_json, myKey):
 
-    if df_embedding_json==[]:
+    if df_embedding_json == []:
         pass
     else:
         df = pd.DataFrame(df_embedding_json)
-        message = answer_question(df,myKey, question=txt, max_len=3500,debug=False)
-        chatbot.append((txt, message.replace('\n','<br/>').replace(" ", "&nbsp;")))
-        return chatbot, '回答完成'
-def mindgraph(chatbot,  df_embedding_json, myKey):
-    
-    if df_embedding_json==[]:
-        pass
-    else:
-        txt = '对这篇文章做一个详细的思维导图，尽可能包含多个层级，给出详细结论，不包含参考文献，必须用markdown，在新窗口生成代码，请不要用mermaid，必须用中文'
-        df = pd.DataFrame(df_embedding_json)
-        message = answer_question(df,myKey, question=txt, max_len=3200,debug=False)
-        chatbot.append((txt, '打开<a href="https://markmap.js.org/repl" target="_blank" color="" style="text-decoration:underline;color:blue">这个页面</a>，粘贴下面内容<br/><pre><code>'+get_mind_graph(message).replace('\n','<br/>').replace(" ", "&nbsp;")+'</code></pre>'))
+        message = answer_question(
+            df, myKey, question=txt, max_len=3500, debug=False)
+        chatbot.append((txt, message.replace(
+            '\n', '<br/>').replace(" ", "&nbsp;")))
         return chatbot, '回答完成'
 
-title = """<h3 align="center">ChatPDF By 小旭学长</h3>"""
+
+def mindgraph(chatbot, txt, df_embedding_json, myKey):
+    if df_embedding_json == []:
+        pass
+    else:
+        question = txt+' 做一个详细的思维导图，尽可能包含多个层级，给出详细结论，不包含参考文献，必须用markdown，在新窗口生成代码，请不要用mermaid，必须用中文'
+        df = pd.DataFrame(df_embedding_json)
+        message = answer_question(
+            df, myKey, question=question, max_len=3200, debug=False)
+        chatbot.append((question, '打开<a href="https://markmap.js.org/repl" target="_blank" color="" style="text-decoration:underline;color:blue">这个页面</a>，粘贴下面内容<br/><pre><code>' +
+                       get_mind_graph(message).replace('\n', '<br/>').replace(" ", "&nbsp;")+'</code></pre>'))
+        return chatbot, '回答完成'
+
+
+
+title = """<h3 align="center">ChatText - 用ChatGPT读文字 By 小旭学长</h3>"""
 
 with gr.Blocks(title='聊天机器人', css=mycss) as demo:
     context = gr.State([])
@@ -473,9 +512,18 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
                             placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
+    with gr.Tab("读文件"):
+        gr.HTML('支持pdf、doc、docx、txt文件')
+        file_obj = gr.File(label='选择pdf文件', show_label=False).style(container=True)
+    with gr.Tab("读网址"):
+        url = gr.Textbox(show_label=False,
+                            placeholder=f"在这里输入网址...")
 
-    file_obj = gr.File(label='选择pdf文件', show_label=False).style(container=True)
-    file_read_label = gr.Label(value='选择pdf文件').style(container=True)
+    with gr.Tab("问搜索引擎"):
+        myquestion = gr.Textbox(show_label=False, 
+                            placeholder=f"在这里输入问题...")
+
+    file_read_label = gr.Label(value='请读取内容', show_label=True).style(container=True)
 
     with gr.Box():
         with gr.Column(scale=12):
@@ -496,17 +544,29 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
     if len(str(my_api_key)) == 51:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
                             placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
-
-    txt.submit(predict_pdf, [chatbot, txt, df_embedding_json, myKey], [chatbot,file_read_label], show_progress=True)
+    txt.submit(predict_pdf, [chatbot, txt, df_embedding_json, myKey], [
+               chatbot, file_read_label], show_progress=True)
     txt.submit(lambda: "", None, txt)
 
-    submitBtn.click(predict_pdf, [chatbot, txt, df_embedding_json, myKey], [chatbot,file_read_label], show_progress=True)
+    submitBtn.click(predict_pdf, [chatbot, txt, df_embedding_json, myKey], [
+                    chatbot, file_read_label], show_progress=True)
     submitBtn.click(lambda: "", None, txt)
 
     keyTxt.submit(set_apikey, [keyTxt, myKey], [
                   keyTxt, myKey], show_progress=True)
-    mindgraphBtn.click(mindgraph, [chatbot, df_embedding_json, myKey], [chatbot,file_read_label], show_progress=True)
+
+    mindgraphBtn.click(mindgraph, [chatbot, txt, df_embedding_json, myKey], [
+                       chatbot, file_read_label], show_progress=True)
+    mindgraphBtn.click(lambda: "", None, txt)
 
     file_obj.change(load_pdf, [file_obj, myKey], [
                     df_embedding_json, file_read_label], show_progress=True)
+    url.submit(load_url, [url, myKey], [
+                    df_embedding_json, file_read_label], show_progress=True)
+    url.submit(lambda: "", None, url)
+    
+    myquestion.submit(load_question, [myquestion, myKey], [
+                    df_embedding_json, file_read_label], show_progress=True)
+    myquestion.submit(lambda: "", None, myquestion)
+    
 demo.launch(share=True)
