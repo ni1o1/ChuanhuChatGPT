@@ -486,8 +486,10 @@ def mindgraph(chatbot, txt, df_embedding_json, myKey):
         df = pd.DataFrame(df_embedding_json)
         message = answer_question(
             df, myKey, question=question, max_len=3200, debug=False)
+            
         chatbot.append((question, '打开<a href="https://markmap.js.org/repl" target="_blank" color="" style="text-decoration:underline;color:blue">这个页面</a>，粘贴下面内容<br/><pre><code>' +
                        get_mind_graph(message).replace('\n', '<br/>').replace(" ", "&nbsp;")+'</code></pre>'))
+        open_mindgraph(get_mind_graph(message))
         return chatbot, '回答完成'
 
 

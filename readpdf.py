@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 import requests
 from urllib.parse import quote
 import docx
+import webbrowser
+import tempfile
 
 # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
 tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -278,3 +280,41 @@ def get_mind_graph(message):
         texts.append(text.replace('-  ','- ').replace('<code>','').replace('</code>',''))
     mind_graph = '\n'.join(texts)
     return mind_graph
+
+
+
+def open_mindgraph(doc2):
+    # 定义HTML文档的结构
+    doc1 = '''
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Markmap</title>
+        <style>
+          svg.markmap {
+            width: 100%;
+            height: 100vh;
+          }
+        </style>
+        <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.14.4"></script>
+      </head>
+      <body>
+        <div class="markmap">
+          <script type="text/template">
+    '''
+    doc3 = '''
+          </script>
+        </div>
+      </body>
+    </html>
+    '''
+    # 保存HTML文档到临时文件
+    temp_file = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
+    temp_file.write((doc1+doc2+doc3).encode())
+    temp_file.close()
+
+    # 打开临时HTML文件
+    webbrowser.open_new_tab('file://'+temp_file.name)
