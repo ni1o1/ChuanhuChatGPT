@@ -12,5 +12,3 @@ tenacity
 docx
 requests
 bs4
-webbrowser
-tempfile
