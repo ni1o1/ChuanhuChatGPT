@@ -528,6 +528,12 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
     file_read_label = gr.Label(value='请读取内容', show_label=True).style(container=True)
 
     with gr.Box():
+        
+        with gr.Row():
+            with gr.Column(scale=1, min_width=68):
+                mindgraphBtn = gr.Button("思维导图")
+        gr.Markdown('# ')
+        
         with gr.Column(scale=12):
             chatbot = gr.Chatbot(show_label=False, elem_id='chatbot').style(
                 color_map=("#7beb67", "#FFF"))
@@ -538,10 +544,6 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
                 with gr.Column(min_width=20, scale=1):
                     submitBtn = gr.Button("↑", variant="primary")
 
-        gr.Markdown('# ')
-        with gr.Row():
-            with gr.Column(scale=1, min_width=68):
-                mindgraphBtn = gr.Button("思维导图")
 
     if len(str(my_api_key)) == 51:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
