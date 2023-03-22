@@ -81,22 +81,6 @@ def read_txt(filename):
     chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
     return chars
 
-def read_question(question):
-    headers = {
-"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
-    }
-    url = 'http://cn.bing.com/search?q='+quote(question)
-    response = requests.get(url, 'lxml', headers=headers)
-    response.encoding = response.apparent_encoding
-    response.raise_for_status()
-    content = response.content
-    # 创建beautifulsoup解析对象
-    bs_1 = BeautifulSoup(content, 'lxml')
-    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in bs_1.text.split('\n')
-                         if (i != '') & (re.sub('\s+', ' ', i) != ' ')], columns=['text'])
-    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
-    url_title = bs_1.find('title').text
-    return chars, url_title
 
 
 def split_into_many(text, max_tokens=500):
@@ -318,3 +302,21 @@ def open_mindgraph(doc2):
 
     # 打开临时HTML文件
     webbrowser.open_new_tab('file://'+temp_file.name)
+
+#bing
+def read_question(question,searchurl='http://cn.bing.com/search?q='):
+    headers = {
+"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
+    }
+    url = searchurl+quote(question)
+    response = requests.get(url, 'lxml', headers=headers)
+    response.encoding = response.apparent_encoding
+    response.raise_for_status()
+    content = response.content
+    # 创建beautifulsoup解析对象
+    bs_1 = BeautifulSoup(content, 'lxml')
+    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in bs_1.text.split('\n')
+                         if (i != '') & (re.sub('\s+', ' ', i) != ' ')], columns=['text'])
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    url_title = bs_1.find('title').text
+    return chars, url_title

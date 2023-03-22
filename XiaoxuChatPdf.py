@@ -452,11 +452,64 @@ def load_url(url, myKey):
     df_embedding_json = json.loads(df.to_json())
     return df_embedding_json, '读取完成:'+url_title
 
-def load_question(question, myKey):
+def load_question_cnbing(question, myKey):
     '''
     PDF embedding
     '''
     df,url_title = read_question(question)
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成:'+url_title
+
+def load_question_wwwbing(question, myKey):
+    '''
+    PDF embedding
+    '''
+    df,url_title = read_question(question,searchurl='http://www.bing.com/search?q=')
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成:'+url_title
+
+
+def load_question_google(question, myKey):
+    '''
+    PDF embedding
+    '''
+    df,url_title = read_question(question,searchurl='https://www.google.com/search?q=')
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成:'+url_title
+
+def load_question_wiki(question, myKey):
+    '''
+    PDF embedding
+    '''
+    df,url_title = read_question(question,searchurl='https://zh.wikipedia.org/wiki/')
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成:'+url_title
+
+def load_question_zhihu(question, myKey):
+    '''
+    PDF embedding
+    '''
+    df,url_title = read_question(question,searchurl='https://www.zhihu.com/search?type=content&q=')
     # Tokenize the text and save the number of tokens to a new column
     df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
     df = shortened_text(df, max_tokens=800)
@@ -522,8 +575,11 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
                             placeholder=f"在这里输入网址...")
 
     with gr.Tab("问搜索引擎"):
-        myquestion = gr.Textbox(show_label=False, 
-                            placeholder=f"在这里输入问题...")
+        myquestion_cnbing = gr.Textbox(show_label=True,label = '必应国内版', placeholder=f"在这里输入问题...")
+        myquestion_wwwbing = gr.Textbox(show_label=True,label = '必应国际版', placeholder=f"在这里输入问题...")
+        myquestion_google = gr.Textbox(show_label=True,label = '谷歌', placeholder=f"在这里输入问题...")
+        myquestion_wiki = gr.Textbox(show_label=True,label = '维基百科', placeholder=f"在这里输入问题...")
+        myquestion_zhihu = gr.Textbox(show_label=True,label = '知乎', placeholder=f"在这里输入问题...")
 
     file_read_label = gr.Label(value='请读取内容', show_label=True).style(container=True)
 
@@ -533,7 +589,7 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
             with gr.Column(scale=1, min_width=68):
                 mindgraphBtn = gr.Button("思维导图")
         gr.Markdown('# ')
-        
+
         with gr.Column(scale=12):
             chatbot = gr.Chatbot(show_label=False, elem_id='chatbot').style(
                 color_map=("#7beb67", "#FFF"))
@@ -546,8 +602,7 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
 
 
     if len(str(my_api_key)) == 51:
-        keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
-                            placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
+        keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
     txt.submit(predict_pdf, [chatbot, txt, df_embedding_json, myKey], [
                chatbot, file_read_label], show_progress=True)
     txt.submit(lambda: "", None, txt)
@@ -569,8 +624,19 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
                     df_embedding_json, file_read_label], show_progress=True)
     url.submit(lambda: "", None, url)
     
-    myquestion.submit(load_question, [myquestion, myKey], [
-                    df_embedding_json, file_read_label], show_progress=True)
-    myquestion.submit(lambda: "", None, myquestion)
+    myquestion_cnbing.submit(load_question_cnbing, [myquestion_cnbing, myKey], [df_embedding_json, file_read_label], show_progress=True)
+    myquestion_cnbing.submit(lambda: "", None, myquestion_cnbing)
+    
+    myquestion_wwwbing.submit(load_question_wwwbing, [myquestion_wwwbing, myKey], [df_embedding_json, file_read_label], show_progress=True)
+    myquestion_wwwbing.submit(lambda: "", None, myquestion_wwwbing)
+
+    myquestion_google.submit(load_question_google, [myquestion_google, myKey], [df_embedding_json, file_read_label], show_progress=True)
+    myquestion_google.submit(lambda: "", None, myquestion_google)
+    
+    myquestion_wiki.submit(load_question_wiki, [myquestion_wiki, myKey], [df_embedding_json, file_read_label], show_progress=True)
+    myquestion_wiki.submit(lambda: "", None, myquestion_wiki)
+    
+    myquestion_zhihu.submit(load_question_zhihu, [myquestion_zhihu, myKey], [df_embedding_json, file_read_label], show_progress=True)
+    myquestion_zhihu.submit(lambda: "", None, myquestion_zhihu)
     
 demo.launch(share=True)
