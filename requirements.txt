@@ -8,6 +8,6 @@ scipy
 scikit-learn
 pdfplumber
 tenacity
-docx
+python-docx
 requests
 bs4
