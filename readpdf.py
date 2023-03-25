@@ -288,6 +288,11 @@ def open_mindgraph(doc2):
       <body>
         <div class="markmap">
           <script type="text/template">
+---
+markmap:
+  colorFreezeLevel: 2
+  maxWidth: 500
+---
     '''
     doc3 = '''
           </script>

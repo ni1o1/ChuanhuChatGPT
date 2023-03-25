@@ -421,7 +421,7 @@ def resend(chatbot, system, context, myKey, filepath):
 
 def load_pdf(file_obj, myKey):
     '''
-    PDF embedding
+    将pdf按照一定规则进行分段，并将每段文本转换成向量形式，并输出一个 JSON 格式的数据集。
     '''
     filetype = file_obj.name.split('.')[-1]
     if filetype =='pdf':
@@ -431,6 +431,22 @@ def load_pdf(file_obj, myKey):
     elif (filetype =='txt')|(filetype =='md'):
         df = read_txt(file_obj.name)
 
+    # Tokenize the text and save the number of tokens to a new column
+    df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = shortened_text(df, max_tokens=800)
+    df = embedding_df(df, myKey)
+    import json
+    df_embedding_json = json.loads(df.to_json())
+    return df_embedding_json, '读取完成'
+
+def load_longtext(long_text, myKey):
+    '''
+    将长文本数据按照一定规则进行分段，并将每段文本转换成向量形式，并输出一个 JSON 格式的数据集。
+    '''
+    paras = long_text.split('\n')
+    chars = pd.DataFrame([re.sub('\s+', ' ', i) for i in paras if (i != '')&(re.sub('\s+', ' ', i)!=' ')],columns=['text'])
+    chars['n_tokens'] = chars.text.apply(lambda x: len(tokenizer.encode(x)))
+    df = chars
     # Tokenize the text and save the number of tokens to a new column
     df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
     df = shortened_text(df, max_tokens=800)
@@ -549,7 +565,7 @@ def mindgraph(chatbot, txt, df_embedding_json, myKey):
 
 title = """<h3 align="center">ChatText - 用ChatGPT读文字 By 小旭学长</h3>"""
 
-with gr.Blocks(title='聊天机器人', css=mycss) as demo:
+with gr.Blocks(title='ChatText', css=mycss) as demo:
     context = gr.State([])
     df_embedding_json = gr.State([])
     systemPrompt = gr.State(update_system(initial_prompt))
@@ -567,38 +583,37 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
         keyTxt = gr.Textbox(show_label=True, label='OpenAI API-key',
                             placeholder=f"在这里输入你的OpenAI API-key...", value=initial_keytxt)
 
-    with gr.Tab("读文件"):
-        gr.HTML('支持pdf、doc、docx、txt文件')
-        file_obj = gr.File(label='选择pdf文件', show_label=False).style(container=True)
-    with gr.Tab("读网址"):
-        url = gr.Textbox(show_label=False,
-                            placeholder=f"在这里输入网址...")
-
-    with gr.Tab("问搜索引擎"):
-        myquestion_cnbing = gr.Textbox(show_label=True,label = '必应国内版', placeholder=f"在这里输入问题...")
-        myquestion_wwwbing = gr.Textbox(show_label=True,label = '必应国际版', placeholder=f"在这里输入问题...")
-        myquestion_google = gr.Textbox(show_label=True,label = '谷歌', placeholder=f"在这里输入问题...")
-        myquestion_wiki = gr.Textbox(show_label=True,label = '维基百科', placeholder=f"在这里输入问题...")
-        myquestion_zhihu = gr.Textbox(show_label=True,label = '知乎', placeholder=f"在这里输入问题...")
-
-    file_read_label = gr.Label(value='请读取内容', show_label=True).style(container=True)
-
-    with gr.Box():
-        
-        with gr.Row():
-            with gr.Column(scale=1, min_width=68):
-                mindgraphBtn = gr.Button("思维导图")
-        gr.Markdown('# ')
-
-        with gr.Column(scale=12):
-            chatbot = gr.Chatbot(show_label=False, elem_id='chatbot').style(
-                color_map=("#7beb67", "#FFF"))
-            with gr.Row():
+    
+    with gr.Row():
+        with gr.Column(scale=1, min_width=68):
+            with gr.Box():
+                with gr.Tab("文件"):
+                    gr.HTML('支持pdf、docx、txt、md文件')
+                    file_obj = gr.File(label='选择pdf文件', show_label=False).style(container=True)
+                with gr.Tab("文本"):
+                    long_text = gr.Textbox(placeholder=f"在这里粘贴长文本...", show_label=False).style(container=True)
+                with gr.Tab("网址"):
+                    url = gr.Textbox(show_label=False,placeholder=f"在这里输入网址...")
+                with gr.Tab("搜索"):
+                    myquestion_cnbing = gr.Textbox(show_label=True,label = '必应国内版', placeholder=f"在这里输入问题...")
+                    myquestion_wwwbing = gr.Textbox(show_label=True,label = '必应国际版', placeholder=f"在这里输入问题...")
+                    myquestion_google = gr.Textbox(show_label=True,label = '谷歌', placeholder=f"在这里输入问题...")
+                    myquestion_wiki = gr.Textbox(show_label=True,label = '维基百科', placeholder=f"在这里输入问题...")
+                    myquestion_zhihu = gr.Textbox(show_label=True,label = '知乎', placeholder=f"在这里输入问题...")
+                file_read_label = gr.Label(value='请读取内容', show_label=True).style(container=True)
+        with gr.Column(scale=2, min_width=68):
+            with gr.Box():
                 with gr.Column(scale=12):
-                    txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
-                        container=False)
-                with gr.Column(min_width=20, scale=1):
-                    submitBtn = gr.Button("↑", variant="primary")
+                    chatbot = gr.Chatbot(show_label=False, elem_id='chatbot').style(
+                        color_map=("#7beb67", "#FFF"))
+                    with gr.Row():
+                        with gr.Column(scale=12):
+                            txt = gr.Textbox(show_label=False, placeholder="在这里输入").style(
+                                container=False)
+                        with gr.Column(min_width=120, scale=1):
+                            mindgraphBtn = gr.Button("思维导图")
+                        with gr.Column(min_width=20, scale=1):
+                            submitBtn = gr.Button("↑", variant="primary")
 
 
     if len(str(my_api_key)) == 51:
@@ -619,6 +634,8 @@ with gr.Blocks(title='聊天机器人', css=mycss) as demo:
     mindgraphBtn.click(lambda: "", None, txt)
 
     file_obj.change(load_pdf, [file_obj, myKey], [
+                    df_embedding_json, file_read_label], show_progress=True)
+    long_text.submit(load_longtext, [long_text, myKey], [
                     df_embedding_json, file_read_label], show_progress=True)
     url.submit(load_url, [url, myKey], [
                     df_embedding_json, file_read_label], show_progress=True)

@@ -1,7 +1,7 @@
 mycss = '''
 .message-wrap {
     height:60vh;
-    min-height: 500px
+    min-height: 400px
 }
 #chatbot .wrap {background-color:#f1f1f1}
 .message { 
