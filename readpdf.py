@@ -293,6 +293,7 @@ markmap:
   colorFreezeLevel: 2
   maxWidth: 500
 ---
+
     '''
     doc3 = '''
           </script>
@@ -302,7 +303,7 @@ markmap:
     '''
     # 保存HTML文档到临时文件
     temp_file = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
-    temp_file.write((doc1+doc2+doc3).encode())
+    temp_file.write((doc1+'\n'+doc2+doc3).encode())
     temp_file.close()
 
     # 打开临时HTML文件
